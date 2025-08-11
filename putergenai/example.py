@@ -7,17 +7,18 @@ from putergenai import PuterClient
 
 def sanitize_string(s, allow_empty=False, allow_path=False):
     """
-    Sanitize user input to prevent code injection and unsafe characters.
-    If allow_path is True, allow slashes for file paths.
+    Sanitize user input for usernames, passwords, and file paths only.
+    For chat and prompt text, allow natural language (no sanitization).
     """
     if not isinstance(s, str):
         raise ValueError("Input must be a string.")
     s = s.strip()
     if not allow_empty and not s:
         raise ValueError("Input cannot be empty.")
-    pattern = r'^[\w\-\.]+$' if not allow_path else r'^[\w\-\.\/]+$'
-    if not re.match(pattern, s):
-        raise ValueError("Input contains invalid characters.")
+    if allow_path:
+        pattern = r'^[\w\-\.\/]+$'
+        if not re.match(pattern, s):
+            raise ValueError("Input contains invalid characters for path.")
     return s
 
 def sanitize_float(val, min_value=0.0, max_value=2.0, default=0.7):
@@ -70,7 +71,6 @@ def main():
     # Available models from model_to_driver
     available_models = list(client.model_to_driver.keys())
     # Whitelist models for selection
-    model_whitelist = set(available_models)
     print("\nAvailable models:")
     for i, model in enumerate(available_models, 1):
         print(f"{i}. {model}")
@@ -81,13 +81,10 @@ def main():
             model_input = input("\nSelect a model (enter number): ").strip()
             model_choice = int(model_input) - 1
             if 0 <= model_choice < len(available_models):
-                selected_model = sanitize_string(available_models[model_choice])
-                if selected_model not in model_whitelist:
-                    print("Selected model is not allowed.")
-                    continue
+                selected_model = available_models[model_choice]
                 break
             print(f"Please select a number between 1 and {len(available_models)}.")
-        except Exception:
+        except ValueError:
             print("Please enter a valid number.")
 
     # Stream option
@@ -129,14 +126,8 @@ def main():
         if user_input.lower().strip() == 'exit':
             break
 
-        try:
-            sanitized_input = sanitize_string(user_input, allow_empty=False)
-        except Exception as e:
-            print(f"Input error: {e}")
-            continue
-
-        # Add user message to history
-        messages.append({"role": "user", "content": sanitized_input})
+        # For chat, allow natural language (no sanitization)
+        messages.append({"role": "user", "content": user_input})
 
         try:
             if stream_input:
@@ -146,7 +137,6 @@ def main():
                 response_content = ''
                 used_model = selected_model
                 for content, model in gen:
-                    # Sanitize assistant output for display
                     safe_content = str(content).replace('\x1b', '')
                     print(safe_content, end='', flush=True)
                     response_content += safe_content
@@ -160,7 +150,6 @@ def main():
                 result = client.ai_chat(messages=messages, options=options, test_mode=test_mode_input, strict_model=strict_model_input)
                 content = result["response"].get('result', {}).get('message', {}).get('content', '')
                 used_model = result["used_model"]
-                # Sanitize assistant output for display
                 safe_content = str(content).replace('\x1b', '')
                 print(f"Assistant: {safe_content}")
                 if show_model_input or debug_input:
