@@ -5,15 +5,18 @@ import os
 from getpass import getpass
 from putergenai import PuterClient
 
-def sanitize_string(s, allow_empty=False):
-    """Sanitize user input to prevent code injection and unsafe characters."""
+def sanitize_string(s, allow_empty=False, allow_path=False):
+    """
+    Sanitize user input to prevent code injection and unsafe characters.
+    If allow_path is True, allow slashes for file paths.
+    """
     if not isinstance(s, str):
         raise ValueError("Input must be a string.")
     s = s.strip()
-    # Only allow alphanumeric, underscore, dash, and dot
     if not allow_empty and not s:
         raise ValueError("Input cannot be empty.")
-    if not re.match(r'^[\w\-\.]+$', s):
+    pattern = r'^[\w\-\.]+$' if not allow_path else r'^[\w\-\.\/]+$'
+    if not re.match(pattern, s):
         raise ValueError("Input contains invalid characters.")
     return s
 
