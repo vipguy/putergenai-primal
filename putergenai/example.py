@@ -1,6 +1,34 @@
 import sys
 import logging
+import re
+import os
+from getpass import getpass
 from putergenai import PuterClient
+
+def sanitize_string(s, allow_empty=False, allow_path=False):
+    """
+    Sanitize user input for usernames, passwords, and file paths only.
+    For chat and prompt text, allow natural language (no sanitization).
+    """
+    if not isinstance(s, str):
+        raise ValueError("Input must be a string.")
+    s = s.strip()
+    if not allow_empty and not s:
+        raise ValueError("Input cannot be empty.")
+    if allow_path:
+        pattern = r'^[\w\-\.\/]+$'
+        if not re.match(pattern, s):
+            raise ValueError("Input contains invalid characters for path.")
+    return s
+
+def sanitize_float(val, min_value=0.0, max_value=2.0, default=0.7):
+    try:
+        f = float(val)
+    except (ValueError, TypeError):
+        f = default
+    if f < min_value or f > max_value:
+        raise ValueError(f"Value must be between {min_value} and {max_value}.")
+    return f
 
 def main():
     client = PuterClient()
@@ -13,17 +41,28 @@ def main():
     logger.addHandler(console_handler)
 
     # Login
-    username = input("Enter your username: ")
-    password = input("Enter your password: ")
-    try:
-        client.login(username, password)
-        print("Login successful!")
-    except ValueError as e:
-        print(f"Login failed: {e}")
-        sys.exit(1)
+    max_attempts = 3
+    attempts = 0
+    while attempts < max_attempts:
+        username = input("Enter your username: ")
+        # Use getpass to mask password input
+        password = getpass("Enter your password: ")
+        try:
+            username = sanitize_string(username)
+            password = sanitize_string(password)
+            client.login(username, password)
+            print("Login successful!")
+            break
+        except ValueError as e:
+            attempts += 1
+            logging.warning(f"Failed login attempt {attempts} for user: {username}")
+            print(f"Login failed: {e}")
+            if attempts >= max_attempts:
+                print("Maximum login attempts exceeded. Exiting.")
+                sys.exit(1)
 
     # Debugging option
-    debug_input = input("Enable debug logging? (y/n): ").lower() == 'y'
+    debug_input = input("Enable debug logging? (y/n): ").strip().lower() == 'y'
     if not debug_input:
         logger.setLevel(logging.CRITICAL + 1)  # Suppress all logs
     else:
@@ -31,6 +70,7 @@ def main():
 
     # Available models from model_to_driver
     available_models = list(client.model_to_driver.keys())
+    # Whitelist models for selection
     print("\nAvailable models:")
     for i, model in enumerate(available_models, 1):
         print(f"{i}. {model}")
@@ -38,35 +78,35 @@ def main():
     # Select model
     while True:
         try:
-            model_choice = int(input("\nSelect a model (enter number): ")) - 1
+            model_input = input("\nSelect a model (enter number): ").strip()
+            model_choice = int(model_input) - 1
             if 0 <= model_choice < len(available_models):
+                selected_model = available_models[model_choice]
                 break
             print(f"Please select a number between 1 and {len(available_models)}.")
         except ValueError:
             print("Please enter a valid number.")
-    selected_model = available_models[model_choice]
 
     # Stream option
-    stream_input = input("Enable streaming? (y/n): ").lower() == 'y'
+    stream_input = input("Enable streaming? (y/n): ").strip().lower() == 'y'
 
     # Test mode option
-    test_mode_input = input("Enable test mode? (y/n): ").lower() == 'y'
+    test_mode_input = input("Enable test mode? (y/n): ").strip().lower() == 'y'
 
     # Strict model option
-    strict_model_input = input("Enforce strict model usage? (y/n): ").lower() == 'y'
+    strict_model_input = input("Enforce strict model usage? (y/n): ").strip().lower() == 'y'
 
     # Temperature
     while True:
         try:
-            temperature_input = float(input("Enter temperature (0-2, default 0.7): ") or 0.7)
-            if 0 <= temperature_input <= 2:
-                break
-            print("Temperature must be between 0 and 2.")
-        except ValueError:
-            print("Please enter a valid number.")
+            temp_raw = input("Enter temperature (0-2, default 0.7): ").strip()
+            temperature_input = sanitize_float(temp_raw or 0.7)
+            break
+        except ValueError as e:
+            print(f"Temperature error: {e}")
 
     # Show used model option
-    show_model_input = input("Show used model after response? (y/n): ").lower() == 'y'
+    show_model_input = input("Show used model after response? (y/n): ").strip().lower() == 'y'
 
     options = {
         "model": selected_model,
@@ -78,13 +118,15 @@ def main():
     messages = []
 
     print("\nChat started. Type 'exit' to quit.")
+    # Do not log sensitive info
+    logging.getLogger('putergenai.client').propagate = False
 
     while True:
         user_input = input("\nYou: ")
-        if user_input.lower() == 'exit':
+        if user_input.lower().strip() == 'exit':
             break
 
-        # Add user message to history
+        # For chat, allow natural language (no sanitization)
         messages.append({"role": "user", "content": user_input})
 
         try:
@@ -95,8 +137,9 @@ def main():
                 response_content = ''
                 used_model = selected_model
                 for content, model in gen:
-                    print(content, end='', flush=True)
-                    response_content += content
+                    safe_content = str(content).replace('\x1b', '')
+                    print(safe_content, end='', flush=True)
+                    response_content += safe_content
                     used_model = model
                 print()  # New line after stream
                 if show_model_input or debug_input:
@@ -107,10 +150,11 @@ def main():
                 result = client.ai_chat(messages=messages, options=options, test_mode=test_mode_input, strict_model=strict_model_input)
                 content = result["response"].get('result', {}).get('message', {}).get('content', '')
                 used_model = result["used_model"]
-                print(f"Assistant: {content}")
+                safe_content = str(content).replace('\x1b', '')
+                print(f"Assistant: {safe_content}")
                 if show_model_input or debug_input:
                     print(f"Used model: {used_model}")
-                messages.append({"role": "assistant", "content": content})
+                messages.append({"role": "assistant", "content": safe_content})
         except Exception as e:
             print(f"Error: {e}")
 

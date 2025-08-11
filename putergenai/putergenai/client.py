@@ -3,10 +3,37 @@ import json
 from typing import Optional, List, Dict, Union, Generator, Any
 import logging
 import time
+import re
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def sanitize_string(s, allow_empty=False, allow_path=False):
+    """
+    Sanitize user input for usernames, passwords, and file paths only.
+    For chat and prompt text, allow natural language (no sanitization).
+    """
+    if not isinstance(s, str):
+        raise ValueError("Input must be a string.")
+    s = s.strip()
+    if not allow_empty and not s:
+        raise ValueError("Input cannot be empty.")
+    if allow_path:
+        pattern = r'^[\w\-\.\/]+$'
+        if not re.match(pattern, s):
+            raise ValueError("Input contains invalid characters for path.")
+    return s
+
+from urllib.parse import urlparse
+def sanitize_url(url):
+    # Improved URL validation
+    if not isinstance(url, str):
+        raise ValueError("Invalid URL: not a string.")
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("Invalid URL.")
+    return url
 
 class PuterClient:
     def __init__(self, token: Optional[str] = None):
@@ -62,6 +89,8 @@ class PuterClient:
         self.max_retries = 3
 
     def login(self, username: str, password: str) -> str:
+        username = sanitize_string(username)
+        password = sanitize_string(password)
         payload = {
             "username": username,
             "password": password
@@ -75,10 +104,10 @@ class PuterClient:
                 logger.info("Login successful, token acquired")
                 return self.token
             else:
-                logger.error("Login failed: Invalid credentials")
+                logger.warning("Login failed: Invalid credentials")
                 raise ValueError("Login failed. Please check your credentials.")
         except requests.RequestException as e:
-            logger.error(f"Login error: {e}")
+            logger.warning(f"Login error: {e}")
             raise ValueError(f"Login error: {e}")
 
     def _get_auth_headers(self) -> Dict[str, str]:
@@ -97,6 +126,7 @@ class PuterClient:
         If content is str or bytes, send directly. If file-like, read it.
         Returns the file info.
         """
+        path = sanitize_string(path, allow_path=True)
         headers = self._get_auth_headers()
         headers.pop("Content-Type")
         if isinstance(content, str):
@@ -105,7 +135,7 @@ class PuterClient:
             if hasattr(content, 'read'):
                 content = content.read()
             else:
-                logger.error("Invalid content type for fs_write")
+                logger.warning("Invalid content type for fs_write")
                 raise ValueError("Content must be str, bytes, or file-like object.")
         try:
             response = requests.post(f"{self.api_base}/write", params={"path": path}, data=content, headers=headers)
@@ -113,13 +143,14 @@ class PuterClient:
             logger.info(f"File written successfully at {path}")
             return response.json()
         except requests.RequestException as e:
-            logger.error(f"fs_write error: {e}")
+            logger.warning(f"fs_write error: {e}")
             raise
 
     def fs_read(self, path: str) -> bytes:
         """
         Read file content from Puter FS.
         """
+        path = sanitize_string(path, allow_path=True)
         headers = self._get_auth_headers()
         try:
             response = requests.get(f"{self.api_base}/read", params={"path": path}, headers=headers)
@@ -127,20 +158,21 @@ class PuterClient:
             logger.info(f"File read successfully from {path}")
             return response.content
         except requests.RequestException as e:
-            logger.error(f"fs_read error: {e}")
+            logger.warning(f"fs_read error: {e}")
             raise
 
     def fs_delete(self, path: str) -> None:
         """
         Delete a file or directory in Puter FS.
         """
+        path = sanitize_string(path, allow_path=True)
         headers = self._get_auth_headers()
         try:
             response = requests.post(f"{self.api_base}/delete", params={"path": path}, headers=headers)
             response.raise_for_status()
             logger.info(f"File deleted successfully at {path}")
         except requests.RequestException as e:
-            logger.error(f"fs_delete error: {e}")
+            logger.warning(f"fs_delete error: {e}")
             raise
 
     def ai_chat(
@@ -168,16 +200,14 @@ class PuterClient:
         if messages is None:
             messages = []
             if prompt:
-                if isinstance(prompt, str):
-                    content = prompt
-                else:
-                    content = prompt
+                content = prompt
                 if image_url:
                     if not isinstance(image_url, list):
                         image_url = [image_url]
                     content_parts = [{"type": "text", "text": content}] if isinstance(content, str) else content
                     for url in image_url:
-                        content_parts.append({"type": "image_url", "image_url": {"url": url}})
+                        safe_url = sanitize_url(url)
+                        content_parts.append({"type": "image_url", "image_url": {"url": safe_url}})
                     content = content_parts
                 messages.append({"role": "user", "content": content})
 
@@ -336,7 +366,8 @@ class PuterClient:
         headers = self._get_auth_headers()
         try:
             if isinstance(image, str):
-                payload = {"image_url": image, "testMode": test_mode}
+                safe_url = sanitize_url(image)
+                payload = {"image_url": safe_url, "testMode": test_mode}
                 response = requests.post(f"{self.api_base}/ai/img2txt", json=payload, headers=headers)
             else:
                 files = {"image": image}
@@ -345,7 +376,7 @@ class PuterClient:
             logger.info("ai_img2txt request successful")
             return response.json().get("text")
         except requests.RequestException as e:
-            logger.error(f"ai_img2txt error: {e}")
+            logger.warning(f"ai_img2txt error: {e}")
             raise
 
     def ai_txt2img(self, prompt: str, test_mode: bool = False) -> str:
@@ -353,6 +384,7 @@ class PuterClient:
         Text to image.
         Returns image data URL.
         """
+        # Allow natural language prompt
         payload = {"prompt": prompt, "testMode": test_mode}
         headers = self._get_auth_headers()
         try:
@@ -361,7 +393,7 @@ class PuterClient:
             logger.info("ai_txt2img request successful")
             return response.json().get("image_url")
         except requests.RequestException as e:
-            logger.error(f"ai_txt2img error: {e}")
+            logger.warning(f"ai_txt2img error: {e}")
             raise
 
     def ai_txt2speech(self, text: str, options: Optional[Dict[str, Any]] = None) -> bytes:
@@ -371,6 +403,7 @@ class PuterClient:
         """
         if options is None:
             options = {}
+        # Allow natural language text
         payload = {"text": text, "testMode": options.get("testMode", False)}
         headers = self._get_auth_headers()
         try:
@@ -379,5 +412,5 @@ class PuterClient:
             logger.info("ai_txt2speech request successful")
             return response.content
         except requests.RequestException as e:
-            logger.error(f"ai_txt2speech error: {e}")
+            logger.warning(f"ai_txt2speech error: {e}")
             raise

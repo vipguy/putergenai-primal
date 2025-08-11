@@ -1,6 +1,6 @@
 # PutergenAI: Python SDK for Puter.js
 
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/python-3.11-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](https://github.com/your-repo/putergenai/actions/workflows/tests.yml)
 
@@ -8,10 +8,12 @@
 
 PutergenAI is a lightweight, robust Python SDK for interacting with the Puter.js API, an open-source cloud operating system focused on privacy and AI capabilities. This SDK provides a clean interface for AI chat completions (supporting multiple models like GPT, Claude, Grok, etc.), file system operations (read/write/delete), and utility AI functions (text-to-image, image-to-text, text-to-speech).
 
-Key principles behind this SDK:
-- **Simplicity**: Intuitive API with sensible defaults.
-- **Robustness**: Automatic handling of JSON parsing, authentication, and API quirks (e.g., model versioning like `gpt-5-2025-08-07`).
-- **Extensibility**: Easy to extend for custom Puter.js features.
+### Recent Updates (v0.1.01)
+- Improved input sanitization and security throughout the SDK
+- Added `.gitignore` for Python, screenshots, and development artifacts
+- Added `requirements.txt` (only `requests` required)
+- Enhanced error handling and logging
+- Updated documentation and versioning
 
 ## Installation
 
@@ -35,6 +37,8 @@ Dependencies:
 No other external libs are required, keeping the footprint small. Tested on Python 3.8–3.12 across Linux, macOS, and Windows.
 
 **Pro Tip**: Use a virtual environment (e.g., `venv` or `poetry`) to isolate dependencies. If you encounter SSL issues, ensure your system's CA certificates are up-to-date.
+
+**New:** See `.gitignore` and `requirements.txt` for project setup and dependency management.
 
 ## Quick Start
 
@@ -67,6 +71,8 @@ client.fs_delete("test.txt")
 This snippet demonstrates authentication, AI chat (with model enforcement), and basic FS ops. Run with `test_mode=True` to simulate without costs.
 
 **Best Practice**: Always wrap API calls in try-except blocks to handle `ValueError` for authentication issues or network errors. For production, implement exponential backoff on retries.
+
+**Security Note:** All user inputs and file paths are now sanitized. Sensitive data is never logged. See the updated `client.py` for details.
 
 ## API Syntax and Reference
 
@@ -186,20 +192,21 @@ print("Image description:", description)
 
 **Limitation Note**: Vision models (e.g., GPT-4o) may require specific drivers; test with `test_mode=True` first.
 
+
 ## Error Handling and Best Practices
 
 - **Common Errors**:
-  - `ValueError`: Invalid credentials or model mismatch (with `strict_model=True`).
-  - `requests.RequestException`: Network issues; implement retries with exponential backoff.
-  - Model fallback: Server may use a different model (e.g., GPT-5 → GPT-4.1-nano); check `used_model` in response.
+    - `ValueError`: Invalid credentials or model mismatch (with `strict_model=True`).
+    - `requests.RequestException`: Network issues; implement retries with exponential backoff.
+    - Model fallback: Server may use a different model (e.g., GPT-5 → GPT-4.1-nano); check `used_model` in response.
 
 - **Best Practices**:
-  - **Security**: Never hardcode credentials; use environment variables (e.g., `os.getenv("PUTER_USERNAME")`).
-  - **Performance**: For streaming, use in async contexts (e.g., `asyncio`) to avoid blocking.
-  - **Costs**: Always set `test_mode=True` in dev; monitor usage via Puter.js API.
-  - **Testing**: Write unit tests for your integration (e.g., mock responses with `responses` lib).
-  - **Versioning**: Pin to a specific SDK version in `requirements.txt` (e.g., `putergenai==0.1.0`).
-  - **Scalability**: For multi-user apps, pool clients or use session tokens.
+    - **Security**: Never hardcode credentials; use environment variables (e.g., `os.getenv("PUTER_USERNAME")`). All user input is sanitized.
+    - **Performance**: For streaming, use in async contexts (e.g., `asyncio`) to avoid blocking.
+    - **Costs**: Always set `test_mode=True` in dev; monitor usage via Puter.js API.
+    - **Testing**: Write unit tests for your integration (e.g., mock responses with `responses` lib).
+    - **Versioning**: Pin to a specific SDK version in `requirements.txt` (e.g., `putergenai==0.1.01`).
+    - **Scalability**: For multi-user apps, pool clients or use session tokens.
 
 If you encounter issues, check logs (enable DEBUG via `logging.basicConfig(level=logging.DEBUG)`) and verify your Puter.js account status. Contributions welcome—see below.
 
@@ -222,6 +229,6 @@ Built on top of Puter.js—kudos to the team for an innovative API. Inspired by 
 
 **Maintainer**: Nerve11 (@Nerve11)  
 **Last Updated**: August 11, 2025  
-**Version**: 0.1.0  
+**Version**: 0.1.01  
 
 If this SDK saves you time, star the repo! Questions? Open an issue.
