@@ -41,6 +41,3 @@ screenshot*
 *.zip
 *.tar.gz
 *.egg-info/
-
-# Security
-SECURITY.md
