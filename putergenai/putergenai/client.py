@@ -9,15 +9,18 @@ import re
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def sanitize_string(s, allow_empty=False):
-    """Sanitize user input to prevent code injection and unsafe characters."""
+def sanitize_string(s, allow_empty=False, allow_path=False):
+    """
+    Sanitize user input to prevent code injection and unsafe characters.
+    If allow_path is True, allow slashes for file paths.
+    """
     if not isinstance(s, str):
         raise ValueError("Input must be a string.")
     s = s.strip()
-    # Only allow alphanumeric, underscore, dash, dot, and slash for paths
     if not allow_empty and not s:
         raise ValueError("Input cannot be empty.")
-    if not re.match(r'^[\w\-\.\/]+$', s):
+    pattern = r'^[\w\-\.]+$' if not allow_path else r'^[\w\-\.\/]+$'
+    if not re.match(pattern, s):
         raise ValueError("Input contains invalid characters.")
     return s
 
@@ -118,7 +121,7 @@ class PuterClient:
         If content is str or bytes, send directly. If file-like, read it.
         Returns the file info.
         """
-        path = sanitize_string(path)
+        path = sanitize_string(path, allow_path=True)
         headers = self._get_auth_headers()
         headers.pop("Content-Type")
         if isinstance(content, str):
@@ -142,7 +145,7 @@ class PuterClient:
         """
         Read file content from Puter FS.
         """
-        path = sanitize_string(path)
+        path = sanitize_string(path, allow_path=True)
         headers = self._get_auth_headers()
         try:
             response = requests.get(f"{self.api_base}/read", params={"path": path}, headers=headers)
@@ -157,7 +160,7 @@ class PuterClient:
         """
         Delete a file or directory in Puter FS.
         """
-        path = sanitize_string(path)
+        path = sanitize_string(path, allow_path=True)
         headers = self._get_auth_headers()
         try:
             response = requests.post(f"{self.api_base}/delete", params={"path": path}, headers=headers)
