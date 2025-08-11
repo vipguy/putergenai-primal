@@ -24,7 +24,7 @@ def sanitize_string(s, allow_empty=False, allow_path=False):
 def sanitize_float(val, min_value=0.0, max_value=2.0, default=0.7):
     try:
         f = float(val)
-    except Exception:
+    except (ValueError, TypeError):
         f = default
     if f < min_value or f > max_value:
         raise ValueError(f"Value must be between {min_value} and {max_value}.")
@@ -102,7 +102,7 @@ def main():
             temp_raw = input("Enter temperature (0-2, default 0.7): ").strip()
             temperature_input = sanitize_float(temp_raw or 0.7)
             break
-        except Exception as e:
+        except ValueError as e:
             print(f"Temperature error: {e}")
 
     # Show used model option
