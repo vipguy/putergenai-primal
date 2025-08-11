@@ -11,22 +11,27 @@ logger = logging.getLogger(__name__)
 
 def sanitize_string(s, allow_empty=False, allow_path=False):
     """
-    Sanitize user input to prevent code injection and unsafe characters.
-    If allow_path is True, allow slashes for file paths.
+    Sanitize user input for usernames, passwords, and file paths only.
+    For chat and prompt text, allow natural language (no sanitization).
     """
     if not isinstance(s, str):
         raise ValueError("Input must be a string.")
     s = s.strip()
     if not allow_empty and not s:
         raise ValueError("Input cannot be empty.")
-    pattern = r'^[\w\-\.]+$' if not allow_path else r'^[\w\-\.\/]+$'
-    if not re.match(pattern, s):
-        raise ValueError("Input contains invalid characters.")
+    if allow_path:
+        pattern = r'^[\w\-\.\/]+$'
+        if not re.match(pattern, s):
+            raise ValueError("Input contains invalid characters for path.")
     return s
 
+from urllib.parse import urlparse
 def sanitize_url(url):
-    # Basic URL validation
-    if not isinstance(url, str) or not re.match(r'^https?://[\w\-\.]+', url):
+    # Improved URL validation
+    if not isinstance(url, str):
+        raise ValueError("Invalid URL: not a string.")
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise ValueError("Invalid URL.")
     return url
 
@@ -195,10 +200,7 @@ class PuterClient:
         if messages is None:
             messages = []
             if prompt:
-                if isinstance(prompt, str):
-                    content = prompt
-                else:
-                    content = prompt
+                content = prompt
                 if image_url:
                     if not isinstance(image_url, list):
                         image_url = [image_url]
@@ -382,7 +384,7 @@ class PuterClient:
         Text to image.
         Returns image data URL.
         """
-        prompt = sanitize_string(prompt, allow_empty=False)
+        # Allow natural language prompt
         payload = {"prompt": prompt, "testMode": test_mode}
         headers = self._get_auth_headers()
         try:
@@ -401,7 +403,7 @@ class PuterClient:
         """
         if options is None:
             options = {}
-        text = sanitize_string(text, allow_empty=False)
+        # Allow natural language text
         payload = {"text": text, "testMode": options.get("testMode", False)}
         headers = self._get_auth_headers()
         try:
