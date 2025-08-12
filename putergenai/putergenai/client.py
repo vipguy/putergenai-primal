@@ -58,30 +58,20 @@ class PuterClient:
             "o3": "openai-completion",
             "o3-mini": "openai-completion",
             "o4-mini": "openai-completion",
-            "gpt-5": "openai-completion",
-            "got-5-mini": "openai-completion",
-            "gpt-5-nano": "openai-completion",
+            "gpt-5-2025-08-07": "openai-completion",
+            "gpt-5-mini-2025-08-07": "openai-completion",
+            "gpt-5-nano-2025-08-07": "openai-completion",
             "gpt-5-chat-latest": "openai-completion",
             "gpt-4.1": "openai-completion",
             "gpt-4.1-mini": "openai-completion",
             "gpt-4.1-nano": "openai-completion",
-            "gpt-4.5-preview": "openai-completion",
             "claude-sonnet-4": "claude",
-            "claude-opus-4": "claude",
-            "claude-3-7-sonnet": "claude",
-            "claude-3-5-sonnet": "claude",
+            "claude-opus-4-1-20250805": "claude",
+            "claude-opus-4-latest": "claude",
+            "claude-3-7-sonnet-latest": "claude",
+            "claude-3-5-sonnet-latest": "claude",
             "deepseek-chat": "deepseek",
             "deepseek-reasoner": "deepseek",
-            "gemini-2.0-flash": "google",
-            "gemini-1.5-flash": "google",
-            "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo": "openrouter",
-            "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo": "openrouter",
-            "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo": "openrouter",
-            "mistral-large-latest": "mistral",
-            "pixtral-large-latest": "mistral",
-            "codestral-latest": "mistral",
-            "google/gemma-2-27b-it": "google",
-            "grok-beta": "xai"
         }
         self.fallback_models = [
             "gpt-4.1-nano", "gpt-4o-mini", "claude-3-5-sonnet", "deepseek-chat", "mistral-large-latest", "grok-beta"
@@ -414,3 +404,4 @@ class PuterClient:
         except requests.RequestException as e:
             logger.warning(f"ai_txt2speech error: {e}")
             raise
+
