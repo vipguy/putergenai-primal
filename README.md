@@ -8,13 +8,6 @@
 
 PutergenAI is a lightweight, robust Python SDK for interacting with the Puter.js API, an open-source cloud operating system focused on privacy and AI capabilities. This SDK provides a clean interface for AI chat completions (supporting multiple models like GPT, Claude, Grok, etc.), file system operations (read/write/delete), and utility AI functions (text-to-image, image-to-text, text-to-speech).
 
-### Recent Updates (v0.1.01)
-- Improved input sanitization and security throughout the SDK
-- Added `.gitignore` for Python, screenshots, and development artifacts
-- Added `requirements.txt` (only `requests` required)
-- Enhanced error handling and logging
-- Updated documentation and versioning
-
 ## Installation
 
 Install via pip (recommended for production):
@@ -73,6 +66,7 @@ This snippet demonstrates authentication, AI chat (with model enforcement), and 
 **Best Practice**: Always wrap API calls in try-except blocks to handle `ValueError` for authentication issues or network errors. For production, implement exponential backoff on retries.
 
 **Security Note:** All user inputs and file paths are now sanitized. Sensitive data is never logged. See the updated `client.py` for details.
+
 
 ## API Syntax and Reference
 
@@ -205,7 +199,7 @@ print("Image description:", description)
     - **Performance**: For streaming, use in async contexts (e.g., `asyncio`) to avoid blocking.
     - **Costs**: Always set `test_mode=True` in dev; monitor usage via Puter.js API.
     - **Testing**: Write unit tests for your integration (e.g., mock responses with `responses` lib).
-    - **Versioning**: Pin to a specific SDK version in `requirements.txt` (e.g., `putergenai==0.1.01`).
+    - **Versioning**: Pin to a specific SDK version in `requirements.txt` (e.g., `putergenai==0.1.5`).
     - **Scalability**: For multi-user apps, pool clients or use session tokens.
 
 If you encounter issues, check logs (enable DEBUG via `logging.basicConfig(level=logging.DEBUG)`) and verify your Puter.js account status. Contributions welcome—see below.
@@ -229,6 +223,6 @@ Built on top of Puter.js—kudos to the team for an innovative API. Inspired by 
 
 **Maintainer**: Nerve11 (@Nerve11)  
 **Last Updated**: August 11, 2025  
-**Version**: 0.1.01  
+**Version**: 0.1.5
 
 If this SDK saves you time, star the repo! Questions? Open an issue.
