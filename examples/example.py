@@ -33,12 +33,13 @@ def sanitize_float(val, min_value=0.0, max_value=2.0, default=0.7):
 def main():
     client = PuterClient()
 
-    # Configure logging
+    # Configure logging to a file to avoid interleaving with console output
     logger = logging.getLogger('putergenai.client')
     logger.handlers = []  # Clear existing handlers
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(logging.Formatter('%(levelname)s:%(name)s:%(message)s'))
-    logger.addHandler(console_handler)
+    # Log to a file instead of stdout
+    file_handler = logging.FileHandler('putergenai.log')
+    file_handler.setFormatter(logging.Formatter('%(levelname)s:%(name)s:%(message)s'))
+    logger.addHandler(file_handler)
 
     # Login
     max_attempts = 3
@@ -137,10 +138,11 @@ def main():
                 response_content = ''
                 used_model = selected_model
                 for content, model in gen:
-                    safe_content = str(content).replace('\x1b', '')
-                    print(safe_content, end='', flush=True)
-                    response_content += safe_content
-                    used_model = model
+                    if content:  # Skip empty content
+                        safe_content = str(content).replace('\x1b', '')
+                        print(safe_content, end='', flush=True)
+                        response_content += safe_content
+                        used_model = model
                 print()  # New line after stream
                 if show_model_input or debug_input:
                     print(f"Used model: {used_model}")
