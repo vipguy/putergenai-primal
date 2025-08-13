@@ -213,6 +213,111 @@ Run tests:
 python -m unittest discover tests
 ```
 
+# PutergenAI GUI Application
+
+This repository includes a CustomTkinter-based GUI for PutergenAI, allowing you to chat with AI models, generate images, and manage your Puter.js account visually.
+
+## Features
+- Login with Puter credentials
+- Select from multiple AI models (chat and image)
+- Use 4 free image generation APIs: Hugging Face, Replicate, DeepAI, OpenAI
+- Enter and save API keys for image generation APIs
+- Popup notification when selecting a free API, reminding you to add your API key
+- Section for entering and saving API keys appears when needed
+- Chat and image generation (API and local)
+- Sign Out button to log out and return to login screen
+- Window resizing is disabled for a consistent experience
+
+## How to Use
+1. **Run the app:**
+   ```bash
+   python example.py
+   ```
+2. **Login:** Enter your Puter username and password.
+3. **Select Model:** Choose an AI model for chat or image tasks.
+4. **Select Image Generation API:** Pick one of the free APIs. A popup will remind you to add your API key.
+5. **Enter API Key:** When prompted, enter your API key in the provided field and click "Save Key".
+6. **Chat or Generate Images:** Use the chat box and buttons to interact with the AI or generate images.
+7. **Sign Out:** Click the Sign Out button to log out and return to the login screen.
+
+## Requirements
+- Python 3.8+
+- `putergenai` (see SDK instructions above)
+- `customtkinter`, `Pillow`, `requests`
+
+Install dependencies:
+```bash
+pip install customtkinter pillow requests putergenai
+```
+
+## Notes
+- API keys are required for Hugging Face, Replicate, and OpenAI image generation. DeepAI may work with a demo key.
+- Window size is fixed (800x600) and cannot be resized.
+- All user input is sanitized for security.
+
+For SDK usage and advanced features, see below.
+
+## GUI Example Usage
+
+Below is a sample workflow using the included `example.py` GUI application:
+
+```python
+from putergenai import PuterClient
+import customtkinter as ctk
+import tkinter as tk
+import tkinter.messagebox as mbox
+
+# Launch the GUI
+if __name__ == "__main__":
+    PuterApp().mainloop()
+```
+
+### Main Features in the GUI
+- **Login:** Enter your Puter credentials to access chat and image features.
+- **Model Selection:** Choose from available AI models (chat and image).
+- **Image Generation API Selection:** Pick from Hugging Face, Replicate, DeepAI, or OpenAI. A popup will remind you to add your API key.
+- **API Key Entry:** When a free API is selected, a section appears to enter and save your API key.
+- **Chat & Image Generation:** Use the chat box and buttons to interact with the AI or generate images (API/local).
+- **Sign Out:** Click the Sign Out button to log out and return to the login screen.
+- **Window Size:** The window is fixed at 800x600 and cannot be resized.
+
+### Example GUI Flow
+1. Run the app: `python example.py`
+2. Login with your Puter username and password.
+3. Select a model and an image generation API.
+4. Enter your API key if prompted and save it.
+5. Type a message or image prompt and use the buttons to chat or generate images.
+6. Sign out when finished.
+
+## Security Features
+
+- API keys are encrypted using Fernet symmetric encryption before being stored on disk (`api_keys.cfg`).
+- The encryption key is stored separately in `api_keys.key` and can be loaded from the environment variable `PUTERGENAI_FERNET_KEY` for enhanced security.
+- File permissions for sensitive files are restricted to user read/write only (on Windows).
+- Sensitive information is never logged or printed to stdout/stderr.
+- Example Flask code demonstrates how to securely store sensitive data in cookies using encryption and the Secure/HttpOnly attributes:
+
+```python
+from flask import Flask, make_response, request
+from cryptography.fernet import Fernet
+
+app = Flask("Secure Example")
+fernet = Fernet(Fernet.generate_key())
+
+@app.route('/')
+def index():
+    password = request.args.get("password")
+    if password:
+        encrypted = fernet.encrypt(password.encode()).decode()
+        resp = make_response("Password received (encrypted in cookie)")
+        resp.set_cookie("password", encrypted, secure=True, httponly=True)
+        return resp
+    return "No password provided"
+```
+
+**Best Practice:** Never store plain-text passwords or sensitive data in cookies. Use session tokens and always set Secure/HttpOnly attributes.
+
+
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.
