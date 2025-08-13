@@ -13,6 +13,15 @@ import stat
 import threading
 import concurrent.futures
 
+# Optional system keychain for secrets
+try:
+    import keyring
+    from keyring.errors import KeyringError
+except Exception:  # keyring not available
+    keyring = None
+    class KeyringError(Exception):
+        pass
+
 def generate_local_image(prompt, filename='local_image.png', bg_color='#496d89', font_size=32, text_color='#ffff00'):
     width, height = 600, 300
     img = Image.new('RGB', (width, height), color=bg_color)
@@ -70,11 +79,36 @@ def sanitize_float(val, min_value=0.0, max_value=2.0, default=0.7):
     return f
 
 
+def sanitize_hex_color(value, default="#000000"):
+    if not isinstance(value, str):
+        return default
+    value = value.strip()
+    if re.fullmatch(r"#(?:[0-9a-fA-F]{3}){1,2}", value):
+        return value
+    return default
+
+
+def sanitize_filename(name, default_name="local_image.png"):
+    """Return a safe filename (no directories), enforce .png extension."""
+    if not isinstance(name, str):
+        return default_name
+    name = name.strip()
+    if not name:
+        return default_name
+    name = os.path.basename(name)
+    if not re.fullmatch(r"[\w\-. ]{1,128}", name or ""):
+        return default_name
+    if not name.lower().endswith(".png"):
+        name = re.sub(r"\.[^.]*$", "", name) + ".png"
+    return name
+
+
 # --- CustomTkinter GUI ---
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 class PuterApp(ctk.CTk):
+    SECURITY_SERVICE_NAME = "PuterGenAI"
     def _load_encryption_key(self):
         self._key_file = "api_keys.key"
         env_key = os.environ.get("PUTERGENAI_FERNET_KEY")
@@ -94,6 +128,42 @@ class PuterApp(ctk.CTk):
                 print(f"Warning: Could not set permissions on {self._key_file}: {e}")
         self._fernet = Fernet(self._fernet_key)
 
+    def _keyring_available(self):
+        return keyring is not None
+
+    def _service_name(self):
+        return self.SECURITY_SERVICE_NAME
+
+    def _get_env_api_key(self, api_name):
+        mapping = {
+            "Hugging Face": ["HUGGINGFACE_API_TOKEN", "PUTERGENAI_HUGGINGFACE_API_KEY"],
+            "Replicate": ["REPLICATE_API_TOKEN", "PUTERGENAI_REPLICATE_API_KEY"],
+            "DeepAI": ["DEEPAI_API_KEY", "PUTERGENAI_DEEPAI_API_KEY"],
+            "OpenAI": ["OPENAI_API_KEY", "PUTERGENAI_OPENAI_API_KEY"],
+        }
+        for env_var in mapping.get(api_name, []):
+            val = os.environ.get(env_var)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+        return None
+
+    def _keyring_get(self, api_name):
+        if not self._keyring_available():
+            return None
+        try:
+            return keyring.get_password(self._service_name(), api_name)
+        except KeyringError:
+            return None
+
+    def _keyring_set(self, api_name, value):
+        if not self._keyring_available():
+            return False
+        try:
+            keyring.set_password(self._service_name(), api_name, value)
+            return True
+        except KeyringError:
+            return False
+
     def _encrypt(self, plaintext):
         return self._fernet.encrypt(plaintext.encode()).decode()
 
@@ -101,7 +171,21 @@ class PuterApp(ctk.CTk):
         return self._fernet.decrypt(ciphertext.encode()).decode()
 
     def _load_api_keys(self):
+        """Load API keys from environment, keyring, or legacy encrypted file."""
         api_keys = {}
+        # Prefer environment variables at runtime (not persisted here)
+        for api_name in ["Hugging Face", "Replicate", "DeepAI", "OpenAI"]:
+            env_val = self._get_env_api_key(api_name)
+            if env_val:
+                api_keys[api_name] = env_val
+        # Next, try system keyring
+        for api_name in ["Hugging Face", "Replicate", "DeepAI", "OpenAI"]:
+            if api_name in api_keys:
+                continue
+            val = self._keyring_get(api_name)
+            if val:
+                api_keys[api_name] = val
+        # Finally, legacy encrypted file fallback
         if os.path.exists("api_keys.cfg"):
             try:
                 with open("api_keys.cfg", "r") as f:
@@ -109,7 +193,9 @@ class PuterApp(ctk.CTk):
                         if "=" in line:
                             k, v = line.strip().split("=", 1)
                             try:
-                                api_keys[k] = self._decrypt(v)
+                                decrypted = self._decrypt(v)
+                                if decrypted and k not in api_keys:
+                                    api_keys[k] = decrypted
                             except Exception:
                                 continue
             except Exception as e:
@@ -117,32 +203,32 @@ class PuterApp(ctk.CTk):
         return api_keys
 
     def _save_api_keys(self):
-        """Save API keys to encrypted file"""
+        """Persist API keys to system keyring when available; otherwise, encrypted file."""
         try:
-            # Create a secure temporary list to avoid direct string formatting
+            # Try secure system keyring first
+            if self._keyring_available():
+                for key_name, value in self.api_keys.items():
+                    if value and isinstance(value, str) and value.strip():
+                        self._keyring_set(key_name, value.strip())
+                return
+            # Fallback: encrypted file storage
             encrypted_lines = []
-            for key, value in self.api_keys.items():
-                if value and value.strip():  # Only save non-empty keys
+            for key_name, value in self.api_keys.items():
+                if value and isinstance(value, str) and value.strip():
                     try:
-                        encrypted_value = self._encrypt(value)
-                        # Use safer string concatenation instead of f-string for sensitive data
-                        line = key + "=" + encrypted_value + "\n"
+                        encrypted_value = self._encrypt(value.strip())
+                        line = key_name + "=" + encrypted_value + "\n"
                         encrypted_lines.append(line)
                     except Exception as encrypt_error:
                         print(f"Error encrypting key for service: {encrypt_error}")
                         continue
-            
-            # Write all encrypted lines at once
             config_file = "api_keys.cfg"
             with open(config_file, "w") as f:
                 f.writelines(encrypted_lines)
-            
-            # Set restrictive file permissions (Windows compatible)
             try:
                 os.chmod(config_file, stat.S_IREAD | stat.S_IWRITE)
             except Exception as perm_error:
                 print(f"Warning: Could not set file permissions: {perm_error}")
-                
         except Exception as e:
             print(f"Error saving API keys: {e}")
 
@@ -172,11 +258,11 @@ class PuterApp(ctk.CTk):
                 mbox.showinfo("API Key Required", f"You selected {choice}. You will need to add an API key to use image generation.")
                 try:
                     self.api_key_entry.delete(0, tk.END)
-                    # Get the API key and ensure it's a string
-                    api_key = self.api_keys.get(choice, "")
-                    if api_key is None:
-                        api_key = ""
-                    self.api_key_entry.insert(0, str(api_key))
+                    # Prefer env var, then in-memory, then keyring
+                    api_key = self._get_env_api_key(choice) or self.api_keys.get(choice)
+                    if not api_key and self._keyring_available():
+                        api_key = self._keyring_get(choice)
+                    self.api_key_entry.insert(0, str(api_key or ""))
                 except Exception as e:
                     print("Error setting API key entry field")
                     # If there's an error, just clear the field
@@ -241,12 +327,20 @@ class PuterApp(ctk.CTk):
         self.main_frame.pack_forget()
         self._build_login()
     def _get_api_key(self, api_name):
-        # Check if we already have a valid API key
+        # 1) Env variable at runtime (do not persist)
+        env_key = self._get_env_api_key(api_name)
+        if env_key:
+            return env_key
+        # 2) In-memory cache
         existing_key = self.api_keys.get(api_name)
-        if existing_key and existing_key.strip():  # Make sure it's not empty or whitespace
-            return existing_key
-            
-        # Popup for API key entry (use customtkinter for consistency)
+        if isinstance(existing_key, str) and existing_key.strip():
+            return existing_key.strip()
+        # 3) System keyring
+        kr = self._keyring_get(api_name)
+        if isinstance(kr, str) and kr.strip():
+            return kr.strip()
+        
+        # 4) Popup for API key entry (use customtkinter for consistency)
         key_win = ctk.CTkToplevel(self)
         key_win.title(f"Enter {api_name} API Key")
         key_win.geometry("350x120")
@@ -260,7 +354,9 @@ class PuterApp(ctk.CTk):
             if entered_key and entered_key.strip():  # Only save if not empty
                 result["key"] = entered_key.strip()
                 self.api_keys[api_name] = result["key"]
-                self._save_api_keys()
+                # Persist securely if possible
+                if not self._keyring_set(api_name, result["key"]):
+                    self._save_api_keys()
             key_win.destroy()
             
         ctk.CTkButton(key_win, text="Save", command=save_key).pack(pady=10)
@@ -335,7 +431,7 @@ class PuterApp(ctk.CTk):
             
             try:
                 import requests
-                resp = requests.post(url, headers=headers, json=data, timeout=60)  # Increased timeout
+                resp = requests.post(url, headers=headers, json=data, timeout=(10, 90))  # Robust timeout
                 
                 # Debug: Log response details (without sensitive data)
                 print(f"Model {model_name}: Status {resp.status_code}")
@@ -421,7 +517,7 @@ class PuterApp(ctk.CTk):
             "input": {"prompt": prompt}
         }
         import requests
-        resp = requests.post(url, headers=headers, json=data)
+        resp = requests.post(url, headers=headers, json=data, timeout=(10, 60))
         if resp.status_code == 201:
             output = resp.json()["urls"]["get"]
             self.after(0, lambda: self.chat_box.insert("end", f"[Replicate] Prompt: {prompt}\nResult URL: {output}\n\n"))
@@ -440,7 +536,7 @@ class PuterApp(ctk.CTk):
         url = "https://api.deepai.org/api/text2img"
         headers = {"api-key": key}
         data = {"text": prompt}
-        resp = requests.post(url, headers=headers, data=data)
+        resp = requests.post(url, headers=headers, data=data, timeout=(10, 60))
         if resp.status_code == 200:
             output = resp.json().get("output_url")
             self.after(0, lambda: self.chat_box.insert("end", f"[DeepAI] Prompt: {prompt}\nImage URL: {output}\n\n"))
@@ -460,7 +556,7 @@ class PuterApp(ctk.CTk):
         headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
         data = {"prompt": prompt, "n": 1, "size": "512x512"}
         import requests
-        resp = requests.post(url, headers=headers, json=data)
+        resp = requests.post(url, headers=headers, json=data, timeout=(10, 60))
         if resp.status_code == 200:
             output = resp.json()["data"][0]["url"]
             self.after(0, lambda: self.chat_box.insert("end", f"[OpenAI] Prompt: {prompt}\nImage URL: {output}\n\n"))
@@ -758,14 +854,28 @@ class PuterApp(ctk.CTk):
         file_entry.pack(pady=5)
 
         def generate_and_close():
-            bg_color = bg_entry.get() or "#496d89"
+            bg_color = sanitize_hex_color(bg_entry.get() or "#496d89", "#496d89")
             try:
                 font_size = int(font_entry.get() or 32)
             except ValueError:
                 font_size = 32
-            text_color = text_entry.get() or "#ffff00"
-            filename = file_entry.get() or "local_image.png"
-            fname = generate_local_image(prompt, filename, bg_color, font_size, text_color)
+            font_size = max(8, min(128, font_size))
+            text_color = sanitize_hex_color(text_entry.get() or "#ffff00", "#ffff00")
+            filename = sanitize_filename(file_entry.get() or "local_image.png")
+            # Ensure safe output directory
+            base_dir = getattr(self, "local_image_dir", "generated_images")
+            try:
+                os.makedirs(base_dir, exist_ok=True)
+            except Exception:
+                base_dir = "."
+            full_path = os.path.abspath(os.path.join(base_dir, filename))
+            try:
+                base_abs = os.path.abspath(base_dir)
+                if os.path.commonpath([full_path, base_abs]) != base_abs:
+                    full_path = os.path.join(base_abs, "local_image.png")
+            except Exception:
+                full_path = os.path.join(base_dir, "local_image.png")
+            fname = generate_local_image(prompt, full_path, bg_color, font_size, text_color)
             self.chat_box.insert("end", f"[Image Local] Prompt: {prompt}\nSaved as: {fname}\n\n")
             self.status_label.configure(text=f"Local image saved as {fname}.", text_color="green")
             options_win.destroy()
@@ -780,7 +890,12 @@ import secrets
 
 app = Flask("Secure Example")
 # Use a secure key from environment or generate securely
-app.secret_key = secrets.token_hex(32)
+app.secret_key = os.environ.get("PUTERGENAI_FLASK_SECRET_KEY", secrets.token_hex(32))
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Strict',
+)
 fernet = Fernet(Fernet.generate_key())
 
 @app.route('/')
@@ -804,9 +919,25 @@ def index():
         return resp
     return "No password provided"
 
+@app.after_request
+def set_secure_headers(resp):
+    # Basic security headers for example purposes
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
+
 # Uncomment below to run Flask app
 # if __name__ == "__main__":
 #     app.run(debug=True)
 
 if __name__ == "__main__":
-    PuterApp().mainloop()
+    app_instance = PuterApp()
+    # Prepare safe local image directory
+    try:
+        app_instance.local_image_dir = "generated_images"
+        os.makedirs(app_instance.local_image_dir, exist_ok=True)
+    except Exception:
+        app_instance.local_image_dir = "."
+    app_instance.mainloop()
