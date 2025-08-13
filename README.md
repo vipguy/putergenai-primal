@@ -20,6 +20,7 @@ For development, clone the repo and install locally:
 
 ```bash
 git clone https://github.com/nerve11/putergenai.git
+or
 git clone https://github.com/kernferm/putergenai.git
 cd putergenai
 pip install -e .
@@ -28,7 +29,9 @@ pip install -e .
 Dependencies:
 - `requests` (>=2.32.0) for HTTP communication.
 
-No other external libs are required, keeping the footprint small. Tested on Python 3.8–3.12 across Linux, macOS, and Windows.
+For the core SDK, no other external libraries are required, keeping the footprint small. Tested on Python 3.8–3.12 across Linux, macOS, and Windows.
+
+Note: The included GUI (`examples/example-ui.py`) adds optional dependencies like `customtkinter`, `Pillow`, `cryptography`, and `keyring` for enhanced security and UX.
 
 **Pro Tip**: Use a virtual environment (e.g., `venv` or `poetry`) to isolate dependencies. If you encounter SSL issues, ensure your system's CA certificates are up-to-date.
 
@@ -66,7 +69,7 @@ This snippet demonstrates authentication, AI chat (with model enforcement), and 
 
 **Best Practice**: Always wrap API calls in try-except blocks to handle `ValueError` for authentication issues or network errors. For production, implement exponential backoff on retries.
 
-**Security Note:** All user inputs and file paths are now sanitized. Sensitive data is never logged. See the updated `client.py` for details.
+**Security Note:** All user inputs and file paths are sanitized. Sensitive data is never logged. See the updated GUI in `examples/example-ui.py` for secure key management and cookie hardening.
 
 ## API Syntax and Reference
 
@@ -215,13 +218,13 @@ python -m unittest discover tests
 
 # PutergenAI GUI Application
 
-This repository includes a CustomTkinter-based GUI for PutergenAI, allowing you to chat with AI models, generate images, and manage your Puter.js account visually.
+This repository includes a CustomTkinter-based GUI for PutergenAI, allowing you to chat with AI models, generate images, and manage your Puter.js account visually. The GUI lives at `examples/example-ui.py` and now implements modern secret management and web security best practices.
 
 ## Features
 - **Secure Login:** Asynchronous login with Puter credentials to prevent UI freezing
 - **Multi-Model Support:** Select from multiple AI models for chat and image generation
 - **Image Generation APIs:** Support for 4 free APIs: Hugging Face, Replicate, DeepAI, OpenAI
-- **Smart API Key Management:** Encrypted storage of API keys with automatic prompts
+- **Smart API Key Management:** Environment variables → system keychain (keyring) → encrypted-file fallback with automatic prompts
 - **Popup Notifications:** Helpful reminders when selecting APIs that require keys
 - **Dynamic UI:** API key entry section appears when needed with disable/enable dropdowns
 - **Asynchronous Operations:** Non-blocking chat and image generation to maintain UI responsiveness
@@ -233,7 +236,11 @@ This repository includes a CustomTkinter-based GUI for PutergenAI, allowing you 
 ## How to Use
 1. **Run the app:**
    ```bash
-   python example.py
+    # Minimal GUI example
+    python examples/example.py
+
+    # Enhanced GUI with secure secret management
+    python examples/example-ui.py
    ```
 2. **Login:** Enter your Puter username and password. The login process runs asynchronously to prevent UI freezing.
 3. **Select Model:** Choose an AI model for chat or image tasks from the dropdown menu.
@@ -247,16 +254,41 @@ This repository includes a CustomTkinter-based GUI for PutergenAI, allowing you 
 ## Requirements
 - Python 3.8+
 - `putergenai` (see SDK instructions above)
-- `customtkinter`, `Pillow`, `requests`, `cryptography`
+- `customtkinter`, `Pillow`, `requests`, `cryptography`, `keyring` (for secure system keychain storage)
 
 Install dependencies:
 ```bash
-pip install customtkinter pillow requests putergenai cryptography
+    pip install customtkinter pillow requests putergenai cryptography keyring
 ```
+
+### Optional: Configure environment variables for API keys and secrets
+
+- Windows PowerShell:
+    ```powershell
+    $env:HUGGINGFACE_API_TOKEN = "hf_..."
+    $env:REPLICATE_API_TOKEN   = "r8_..."
+    $env:DEEPAI_API_KEY        = "quickstart-..."
+    $env:OPENAI_API_KEY        = "sk-..."
+
+    # Optional: Flask demo secret and Fernet key for encrypted file fallback
+    $env:PUTERGENAI_FLASK_SECRET_KEY = "long-random-hex"
+    $env:PUTERGENAI_FERNET_KEY       = "base64url-fernet-key"
+    ```
+
+- Linux/macOS (bash/zsh):
+    ```bash
+    export HUGGINGFACE_API_TOKEN="hf_..."
+    export REPLICATE_API_TOKEN="r8_..."
+    export DEEPAI_API_KEY="quickstart-..."
+    export OPENAI_API_KEY="sk-..."
+
+    export PUTERGENAI_FLASK_SECRET_KEY="long-random-hex"
+    export PUTERGENAI_FERNET_KEY="base64url-fernet-key"
+    ```
 
 ## Notes
 - **API Keys:** Required for Hugging Face, Replicate, and OpenAI image generation. DeepAI may work with a demo key.
-- **Security:** API keys are encrypted using Fernet encryption and stored in `api_keys.cfg`. Never store plain-text credentials.
+- **Security:** API keys are resolved in this order: environment variables → system keychain via `keyring` → encrypted-file fallback (`api_keys.cfg` with Fernet). Never store plain-text credentials.
 - **Performance:** All network operations (login, chat, image generation) run asynchronously to prevent UI freezing.
 - **Error Handling:** The application includes comprehensive error handling with user-friendly messages and fallback mechanisms.
 - **Window Management:** Window size is fixed (800x600) and cannot be resized for consistent UX.
@@ -313,52 +345,66 @@ The GUI implements threading for all network operations to prevent freezing:
 - Error handling provides immediate feedback without blocking the UI
 
 ### Security Implementation
-- **Encryption:** All API keys are encrypted using Fernet symmetric encryption
+- **Secret resolution order:** ENV → system keychain (`keyring`) → encrypted-file fallback
+- **Encryption:** Fallback secrets are encrypted using Fernet symmetric encryption
 - **File Security:** Sensitive files have restricted permissions (user read/write only)
 - **No Logging:** Sensitive data is never logged or printed to console
-- **Session Tokens:** Secure session management without storing plain-text credentials
+- **Session Tokens:** Secure session management; demo web route uses session tokens instead of storing passwords
 - **Input Sanitization:** All user input is validated and sanitized before processing
 
 ## Security Features
 
-- **Encrypted API Key Storage:** API keys are encrypted using Fernet symmetric encryption before being stored on disk (`api_keys.cfg`).
-- **Secure Key Management:** The encryption key is stored separately in `api_keys.key` and can be loaded from the environment variable `PUTERGENAI_FERNET_KEY` for enhanced security.
-- **File Permissions:** Sensitive files have restricted permissions (user read/write only on Windows) to prevent unauthorized access.
-- **No Sensitive Logging:** Sensitive information is never logged or printed to stdout/stderr to prevent accidental exposure.
-- **Asynchronous Authentication:** Login operations use threading to prevent UI blocking while maintaining security.
-- **Session Management:** Secure session handling with proper cleanup on logout and no plain-text credential storage.
-- **Input Validation:** All user input is sanitized and validated before processing to prevent injection attacks.
-- **Error Handling:** Security-conscious error messages that don't expose sensitive system information.
+- **Key Management Hierarchy:** Environment variables → system keychain (`keyring`) → encrypted-file fallback (`api_keys.cfg`).
+- **Encrypted Fallback Storage:** When keyring is unavailable, secrets are stored encrypted with Fernet; key material is in `api_keys.key` or `PUTERGENAI_FERNET_KEY`.
+- **File Permissions:** Sensitive files default to user-only permissions on Windows.
+- **No Sensitive Logging:** Secrets are never logged.
+- **Asynchronous Authentication:** Login uses threading to avoid UI blocking.
+- **Session Management:** No plain-text credential storage; web demo uses session tokens.
+- **Input Validation:** Sanitized inputs, safe filenames, and constrained image options.
+- **Secure Cookies and Headers:** Flask demo sets Secure/HttpOnly/SameSite cookies and adds basic security headers.
 
 ### Secure Cookie Example
-Example Flask code demonstrates how to securely store sensitive data in cookies using encryption and the Secure/HttpOnly attributes:
+The Flask demo now avoids storing passwords in cookies and instead sets a short-lived session token cookie, plus security headers:
 
 ```python
 from flask import Flask, make_response, request
 from cryptography.fernet import Fernet
+import os, secrets
 
 app = Flask("Secure Example")
+app.secret_key = os.environ.get("PUTERGENAI_FLASK_SECRET_KEY", secrets.token_hex(32))
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Strict',
+)
 fernet = Fernet(Fernet.generate_key())
 
 @app.route('/')
 def index():
     password = request.args.get("password")
     if password:
-        encrypted = fernet.encrypt(password.encode()).decode()
-        resp = make_response("Password received (encrypted in cookie)")
-        resp.set_cookie("password", encrypted, secure=True, httponly=True)
+        session_token = secrets.token_urlsafe(32)
+        resp = make_response("Authentication token created (password not stored in cookie)")
+        resp.set_cookie("session_token", session_token, secure=True, httponly=True, samesite='Strict', max_age=3600)
         return resp
     return "No password provided"
+
+@app.after_request
+def set_secure_headers(resp):
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
 ```
 
 **Security Best Practices:**
-- Never store plain-text passwords or sensitive data in cookies
-- Use session tokens instead of storing actual credentials
-- Always set Secure/HttpOnly attributes for sensitive cookies
-- Implement proper session timeout and cleanup mechanisms
-- Use environment variables for encryption keys in production
-- Regularly rotate encryption keys and API tokens
-- Monitor for suspicious activity and implement rate limiting
+- Never store credentials in cookies; use opaque session tokens
+- Always set Secure/HttpOnly/SameSite on sensitive cookies
+- Add basic security headers; prefer a CSP and further hardening in production
+- Use environment variables for secrets; rotate keys/tokens regularly
+- Implement rate limiting, logging, and session expiry
 
 ## Troubleshooting & Performance
 
@@ -415,6 +461,6 @@ Built on top of Puter.js—kudos to the team for an innovative API. Inspired by 
 - [Nerve11](https://github.com/Nerve11)
 - [BubblesTheDev](https://github.com/KernFerm)
 - **Last Updated**: August 13, 2025  
-- **Version**: `1.5.1`
+- **Version**: `0.1.5`
 
 - If this SDK saves you time, star the repo! Questions? Open an issue.
