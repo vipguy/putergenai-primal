@@ -30,7 +30,6 @@ def sanitize_string(s, allow_empty=False, allow_path=False):
 
 
 def sanitize_url(url):
-    # Improved URL validation
     if not isinstance(url, str):
         raise ValueError("Invalid URL: not a string.")
     parsed = urlparse(url)
@@ -79,6 +78,15 @@ class PuterClient:
             "claude-3-5-sonnet-latest": "claude",
             "deepseek-chat": "deepseek",
             "deepseek-reasoner": "deepseek",
+        }
+        # For these models, per puter.js docs, temperature must be 1 by default
+        # and should be enforced regardless of user-provided options.
+        self.force_temperature_1_models = {
+            "gpt-5-2025-08-07",
+            "gpt-5-mini-2025-08-07",
+            "gpt-5-nano-2025-08-07",
+            "o3",
+            "o1",
         }
         self.fallback_models = [
             "gpt-4.1-nano",
@@ -210,7 +218,14 @@ class PuterClient:
         model = options.get("model", self.fallback_models[0])
         driver = self.model_to_driver.get(model, "openai-completion")
         stream = options.get("stream", False)
+        # Default temperature, overridden for specific models below
         temperature = options.get("temperature", 0.7)
+        if model in self.force_temperature_1_models:
+            if temperature != 1:
+                logger.info(
+                    f"Overriding temperature to 1 for model '{model}' as per puter.js requirements"
+                )
+            temperature = 1
         max_tokens = options.get("max_tokens", 1000)
 
         if messages is None:
