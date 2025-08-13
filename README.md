@@ -1,8 +1,8 @@
 # PutergenAI: Python SDK for Puter.js
 
-[![Python Version](https://img.shields.io/badge/python-3.11-blue)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/python-3.11.9-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](https://github.com/your-repo/putergenai/actions/workflows/tests.yml)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](https://img.shields.io/badge/tests-passing-brightgreen)
 
 ## Overview
 
@@ -20,6 +20,7 @@ For development, clone the repo and install locally:
 
 ```bash
 git clone https://github.com/nerve11/putergenai.git
+git clone https://github.com/kernferm/putergenai.git
 cd putergenai
 pip install -e .
 ```
@@ -66,7 +67,6 @@ This snippet demonstrates authentication, AI chat (with model enforcement), and 
 **Best Practice**: Always wrap API calls in try-except blocks to handle `ValueError` for authentication issues or network errors. For production, implement exponential backoff on retries.
 
 **Security Note:** All user inputs and file paths are now sanitized. Sensitive data is never logged. See the updated `client.py` for details.
-
 
 ## API Syntax and Reference
 
@@ -199,7 +199,7 @@ print("Image description:", description)
     - **Performance**: For streaming, use in async contexts (e.g., `asyncio`) to avoid blocking.
     - **Costs**: Always set `test_mode=True` in dev; monitor usage via Puter.js API.
     - **Testing**: Write unit tests for your integration (e.g., mock responses with `responses` lib).
-    - **Versioning**: Pin to a specific SDK version in `requirements.txt` (e.g., `putergenai==0.1.5`).
+    - **Versioning**: Pin to a specific SDK version in `requirements.txt` (e.g., `putergenai==0.1.01`).
     - **Scalability**: For multi-user apps, pool clients or use session tokens.
 
 If you encounter issues, check logs (enable DEBUG via `logging.basicConfig(level=logging.DEBUG)`) and verify your Puter.js account status. Contributions welcome—see below.
@@ -218,42 +218,51 @@ python -m unittest discover tests
 This repository includes a CustomTkinter-based GUI for PutergenAI, allowing you to chat with AI models, generate images, and manage your Puter.js account visually.
 
 ## Features
-- Login with Puter credentials
-- Select from multiple AI models (chat and image)
-- Use 4 free image generation APIs: Hugging Face, Replicate, DeepAI, OpenAI
-- Enter and save API keys for image generation APIs
-- Popup notification when selecting a free API, reminding you to add your API key
-- Section for entering and saving API keys appears when needed
-- Chat and image generation (API and local)
-- Sign Out button to log out and return to login screen
-- Window resizing is disabled for a consistent experience
+- **Secure Login:** Asynchronous login with Puter credentials to prevent UI freezing
+- **Multi-Model Support:** Select from multiple AI models for chat and image generation
+- **Image Generation APIs:** Support for 4 free APIs: Hugging Face, Replicate, DeepAI, OpenAI
+- **Smart API Key Management:** Encrypted storage of API keys with automatic prompts
+- **Popup Notifications:** Helpful reminders when selecting APIs that require keys
+- **Dynamic UI:** API key entry section appears when needed with disable/enable dropdowns
+- **Asynchronous Operations:** Non-blocking chat and image generation to maintain UI responsiveness
+- **Enhanced Error Handling:** Robust error handling with user-friendly feedback
+- **Security Features:** Encrypted API key storage and secure session management
+- **Sign Out Functionality:** Clean logout and return to login screen
+- **Consistent UX:** Fixed window sizing (800x600) for optimal user experience
 
 ## How to Use
 1. **Run the app:**
    ```bash
    python example.py
    ```
-2. **Login:** Enter your Puter username and password.
-3. **Select Model:** Choose an AI model for chat or image tasks.
-4. **Select Image Generation API:** Pick one of the free APIs. A popup will remind you to add your API key.
-5. **Enter API Key:** When prompted, enter your API key in the provided field and click "Save Key".
-6. **Chat or Generate Images:** Use the chat box and buttons to interact with the AI or generate images.
-7. **Sign Out:** Click the Sign Out button to log out and return to the login screen.
+2. **Login:** Enter your Puter username and password. The login process runs asynchronously to prevent UI freezing.
+3. **Select Model:** Choose an AI model for chat or image tasks from the dropdown menu.
+4. **Select Image Generation API:** Pick one of the free APIs. A popup will remind you to add your API key if required.
+5. **Enter API Key:** When prompted, enter your API key in the provided field and click "Save Key". Keys are encrypted and stored securely.
+6. **Chat or Generate Images:** Use the chat box and buttons to interact with the AI or generate images. All operations are asynchronous.
+7. **Monitor Progress:** Watch the status updates and progress indicators during operations.
+8. **Handle Errors:** The application provides clear error messages and fallback options for failed operations.
+9. **Sign Out:** Click the Sign Out button to securely log out and return to the login screen.
 
 ## Requirements
 - Python 3.8+
 - `putergenai` (see SDK instructions above)
-- `customtkinter`, `Pillow`, `requests`
+- `customtkinter`, `Pillow`, `requests`, `cryptography`
 
 Install dependencies:
 ```bash
-pip install customtkinter pillow requests putergenai
+pip install customtkinter pillow requests putergenai cryptography
 ```
 
 ## Notes
-- API keys are required for Hugging Face, Replicate, and OpenAI image generation. DeepAI may work with a demo key.
-- Window size is fixed (800x600) and cannot be resized.
-- All user input is sanitized for security.
+- **API Keys:** Required for Hugging Face, Replicate, and OpenAI image generation. DeepAI may work with a demo key.
+- **Security:** API keys are encrypted using Fernet encryption and stored in `api_keys.cfg`. Never store plain-text credentials.
+- **Performance:** All network operations (login, chat, image generation) run asynchronously to prevent UI freezing.
+- **Error Handling:** The application includes comprehensive error handling with user-friendly messages and fallback mechanisms.
+- **Window Management:** Window size is fixed (800x600) and cannot be resized for consistent UX.
+- **Threading:** Login and API operations use threading to maintain UI responsiveness.
+- **Input Validation:** All user input is sanitized for security.
+- **Session Management:** Secure session handling with proper cleanup on logout.
 
 For SDK usage and advanced features, see below.
 
@@ -273,29 +282,56 @@ if __name__ == "__main__":
 ```
 
 ### Main Features in the GUI
-- **Login:** Enter your Puter credentials to access chat and image features.
-- **Model Selection:** Choose from available AI models (chat and image).
-- **Image Generation API Selection:** Pick from Hugging Face, Replicate, DeepAI, or OpenAI. A popup will remind you to add your API key.
-- **API Key Entry:** When a free API is selected, a section appears to enter and save your API key.
-- **Chat & Image Generation:** Use the chat box and buttons to interact with the AI or generate images (API/local).
-- **Sign Out:** Click the Sign Out button to log out and return to the login screen.
-- **Window Size:** The window is fixed at 800x600 and cannot be resized.
+- **Secure Login:** Asynchronous authentication with Puter credentials using threading to prevent UI blocking.
+- **Model Selection:** Choose from available AI models (chat and image) with dynamic dropdown management.
+- **Image Generation API Selection:** Pick from Hugging Face, Replicate, DeepAI, or OpenAI with smart API key prompts.
+- **Encrypted API Key Management:** Secure storage and retrieval of API keys using Fernet encryption.
+- **Asynchronous Operations:** Non-blocking chat and image generation with progress indicators.
+- **Error Recovery:** Comprehensive error handling with fallback mechanisms and user-friendly messages.
+- **Session Management:** Secure login/logout functionality with proper session cleanup.
+- **Responsive UI:** Threading ensures the interface remains responsive during all operations.
+- **Smart Dropdown Control:** Dropdowns automatically disable/enable based on operation state.
+- **Window Management:** Fixed window size (800x600) with optimized layout for consistent user experience.
 
 ### Example GUI Flow
-1. Run the app: `python example.py`
-2. Login with your Puter username and password.
-3. Select a model and an image generation API.
-4. Enter your API key if prompted and save it.
-5. Type a message or image prompt and use the buttons to chat or generate images.
-6. Sign out when finished.
+1. **Launch:** Run the app with `python example.py`
+2. **Authentication:** Login with your Puter username and password (asynchronous process)
+3. **Configuration:** Select a model and an image generation API from the dropdown menus
+4. **API Setup:** Enter your API key if prompted and save it (encrypted storage)
+5. **Interaction:** Type a message or image prompt and use the buttons to chat or generate images
+6. **Monitor:** Watch progress indicators and status updates during operations
+7. **Error Handling:** Receive clear feedback if operations fail with suggested solutions
+8. **Session End:** Sign out securely when finished, which clears all session data
+
+## Advanced Usage
+
+### Asynchronous Operations
+The GUI implements threading for all network operations to prevent freezing:
+- Login authentication runs in a separate thread
+- Image generation uses asynchronous processing with progress updates
+- Chat operations are non-blocking with real-time response streaming
+- Error handling provides immediate feedback without blocking the UI
+
+### Security Implementation
+- **Encryption:** All API keys are encrypted using Fernet symmetric encryption
+- **File Security:** Sensitive files have restricted permissions (user read/write only)
+- **No Logging:** Sensitive data is never logged or printed to console
+- **Session Tokens:** Secure session management without storing plain-text credentials
+- **Input Sanitization:** All user input is validated and sanitized before processing
 
 ## Security Features
 
-- API keys are encrypted using Fernet symmetric encryption before being stored on disk (`api_keys.cfg`).
-- The encryption key is stored separately in `api_keys.key` and can be loaded from the environment variable `PUTERGENAI_FERNET_KEY` for enhanced security.
-- File permissions for sensitive files are restricted to user read/write only (on Windows).
-- Sensitive information is never logged or printed to stdout/stderr.
-- Example Flask code demonstrates how to securely store sensitive data in cookies using encryption and the Secure/HttpOnly attributes:
+- **Encrypted API Key Storage:** API keys are encrypted using Fernet symmetric encryption before being stored on disk (`api_keys.cfg`).
+- **Secure Key Management:** The encryption key is stored separately in `api_keys.key` and can be loaded from the environment variable `PUTERGENAI_FERNET_KEY` for enhanced security.
+- **File Permissions:** Sensitive files have restricted permissions (user read/write only on Windows) to prevent unauthorized access.
+- **No Sensitive Logging:** Sensitive information is never logged or printed to stdout/stderr to prevent accidental exposure.
+- **Asynchronous Authentication:** Login operations use threading to prevent UI blocking while maintaining security.
+- **Session Management:** Secure session handling with proper cleanup on logout and no plain-text credential storage.
+- **Input Validation:** All user input is sanitized and validated before processing to prevent injection attacks.
+- **Error Handling:** Security-conscious error messages that don't expose sensitive system information.
+
+### Secure Cookie Example
+Example Flask code demonstrates how to securely store sensitive data in cookies using encryption and the Secure/HttpOnly attributes:
 
 ```python
 from flask import Flask, make_response, request
@@ -315,7 +351,56 @@ def index():
     return "No password provided"
 ```
 
-**Best Practice:** Never store plain-text passwords or sensitive data in cookies. Use session tokens and always set Secure/HttpOnly attributes.
+**Security Best Practices:**
+- Never store plain-text passwords or sensitive data in cookies
+- Use session tokens instead of storing actual credentials
+- Always set Secure/HttpOnly attributes for sensitive cookies
+- Implement proper session timeout and cleanup mechanisms
+- Use environment variables for encryption keys in production
+- Regularly rotate encryption keys and API tokens
+- Monitor for suspicious activity and implement rate limiting
+
+## Troubleshooting & Performance
+
+### Common Issues and Solutions
+
+**Login Freezing:**
+- **Solution:** The application now uses asynchronous login with threading to prevent UI freezing
+- **Implementation:** Login operations run in background threads while maintaining UI responsiveness
+
+**Image Generation Timeouts:**
+- **Solution:** Asynchronous image generation with multiple API fallbacks
+- **Features:** Progress indicators, timeout handling, and automatic retry mechanisms
+
+**API Key Errors:**
+- **Solution:** Enhanced error handling with clear user feedback
+- **Features:** Encrypted storage, validation, and helpful error messages
+
+**Memory Issues:**
+- **Solution:** Proper resource cleanup and image optimization
+- **Implementation:** PIL image handling with memory-efficient processing
+
+### Performance Optimizations
+
+**Threading Implementation:**
+- All network operations use dedicated threads to prevent UI blocking
+- Main UI thread remains responsive during all operations
+- Proper thread synchronization to prevent race conditions
+
+**Error Recovery:**
+- Multiple API fallbacks for image generation (Hugging Face → Replicate → DeepAI → OpenAI)
+- Graceful degradation when services are unavailable
+- User-friendly error messages with suggested actions
+
+**Resource Management:**
+- Efficient memory usage for image processing
+- Proper cleanup of network connections
+- Optimized UI updates to prevent rendering lag
+
+**Security Performance:**
+- Fast encryption/decryption of API keys using Fernet
+- Minimal impact file permission checks
+- Secure session management without performance overhead
 
 
 ## License
@@ -326,8 +411,10 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 Built on top of Puter.js—kudos to the team for an innovative API. Inspired by real-world needs for privacy-focused AI tools.
 
-**Maintainer**: Nerve11 (@Nerve11) , Bubbles The Dev (@KernFerm) 
-**Last Updated**: August 13, 2025  
-**Version**: 0.1.5
+**Maintainers**:
+- [Nerve11](https://github.com/Nerve11)
+- [BubblesTheDev](https://github.com/KernFerm)
+- **Last Updated**: August 13, 2025  
+- **Version**: `1.5.1`
 
-If this SDK saves you time, star the repo! Questions? Open an issue.
+- If this SDK saves you time, star the repo! Questions? Open an issue.
