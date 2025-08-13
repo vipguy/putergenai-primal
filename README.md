@@ -221,8 +221,8 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 Built on top of Puter.js—kudos to the team for an innovative API. Inspired by real-world needs for privacy-focused AI tools.
 
-**Maintainer**: Nerve11 (@Nerve11)  
-**Last Updated**: August 11, 2025  
+**Maintainer**: Nerve11 (@Nerve11) , Bubbles The Dev (@KernFerm) 
+**Last Updated**: August 13, 2025  
 **Version**: 0.1.5
 
 If this SDK saves you time, star the repo! Questions? Open an issue.
