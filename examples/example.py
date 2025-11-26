@@ -1,7 +1,6 @@
 import sys
 import logging
 import re
-import os
 from getpass import getpass
 from putergenai import PuterClient
 
