@@ -2,7 +2,7 @@ import json
 import logging
 import re
 import time
-from typing import Any, Dict, Generator, List, Optional, Union
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
 import requests
@@ -808,7 +808,7 @@ class PuterClient:
         messages: Optional[List[Dict[str, Any]]] = None,
         retry_count: int = 0,
         strict_model: bool = False,
-    ) -> Union[Dict[str, Any], Generator[tuple[str, str], None, None]]:
+    ) -> Union[Dict[str, Any], Generator[Tuple[str, str], None, None]]:
         """
         AI chat completion, supporting multiple models with fallback and retries.
         Returns: For stream, a generator of (content, used_model) tuples; for non-stream, a dict with response and used_model.
