@@ -460,7 +460,7 @@ Built on top of Puter.js—kudos to the team for an innovative API. Inspired by 
 **Maintainers**:
 - [Nerve11](https://github.com/Nerve11)
 - [BubblesTheDev](https://github.com/KernFerm)
-- **Last Updated**: August 13, 2025  
+- **Last Updated**: November 26, 2025  
 - **Version**: `0.1.5`
 
 - If this SDK saves you time, star the repo! Questions? Open an issue.
