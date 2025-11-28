@@ -1,3 +1,9 @@
+"""
+PuterGenAI - Asynchronous Python client for the Puter.com API.
+"""
+
 from .putergenai import PuterClient
 
-__version__ = '0.1.5.1'
+__version__ = '2.0.1'
+
+__all__ = ["PuterClient", "__version__"]
