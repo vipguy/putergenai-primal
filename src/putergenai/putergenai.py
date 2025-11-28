@@ -1,18 +1,31 @@
+import asyncio
 import json
 import logging
 import re
-import time
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+import ssl
+import socket
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    AsyncGenerator,
+)
 from urllib.parse import urlparse
 
-import requests
+import aiohttp
+import certifi
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+__version__ = '2.0.1'
 
-def sanitize_string(s, allow_empty=False, allow_path=False):
+
+def sanitize_string(s: str, allow_empty: bool = False, allow_path: bool = False) -> str:
     """
     Sanitize user input for usernames, passwords, and file paths only.
     For chat and prompt text, allow natural language (no sanitization).
@@ -29,7 +42,7 @@ def sanitize_string(s, allow_empty=False, allow_path=False):
     return s
 
 
-def sanitize_url(url):
+def sanitize_url(url: str) -> str:
     if not isinstance(url, str):
         raise ValueError("Invalid URL: not a string.")
     parsed = urlparse(url)
@@ -39,10 +52,16 @@ def sanitize_url(url):
 
 
 class PuterClient:
-    def __init__(self, token: Optional[str] = None):
+    """
+    Asynchronous Client for the Puter.com API.
+    """
+
+    def __init__(self, token: Optional[str] = None, ignore_ssl: bool = False):
         self.token = token
+        self.ignore_ssl = ignore_ssl
         self.api_base = "https://api.puter.com"
         self.login_url = "https://puter.com/login"
+        self._session: Optional[aiohttp.ClientSession] = None
         self.headers = {
             "Accept": "*/*",
             "Accept-Language": "en-US,en;q=0.9",
@@ -50,11 +69,12 @@ class PuterClient:
             "Origin": "https://puter.com",
             "Referer": "https://puter.com/",
             "User-Agent": (
-                "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             ),
         }
-        # Model to driver mapping for all models from puter.js documentation
+        
+        # Model to driver mapping
         self.model_to_driver = {
             # OpenAI GPT-5.1 models
             "gpt-5.1": "openai-completion",
@@ -290,7 +310,7 @@ class PuterClient:
             "togetherai:BAAI/bge-base-en-v1.5": "together-ai",
             "togetherai:deepseek-ai/DeepSeek-V3.1": "together-ai",
             "togetherai:mistralai/Mistral-7B-Instruct-v0.2": "together-ai",
-            # OpenRouter models (using openrouter driver)
+            # OpenRouter models
             "openrouter:anthropic/claude-opus-4.5": "openrouter",
             "openrouter:openrouter/bert-nebulon-alpha": "openrouter",
             "openrouter:allenai/olmo-3-32b-think": "openrouter",
@@ -330,17 +350,6 @@ class PuterClient:
             "openrouter:google/gemini-2.5-flash-image": "openrouter",
             "openrouter:qwen/qwen3-vl-30b-a3b-thinking": "openrouter",
             "openrouter:qwen/qwen3-vl-30b-a3b-instruct": "openrouter",
-            "openrouter:openai/gpt-5-pro": "openrouter",
-            "openrouter:z-ai/glm-4.6": "openrouter",
-            "openrouter:z-ai/glm-4.6:exacto": "openrouter",
-            "openrouter:anthropic/claude-sonnet-4.5": "openrouter",
-            "openrouter:deepseek/deepseek-v3.2-exp": "openrouter",
-            "openrouter:thedrummer/cydonia-24b-v4.1": "openrouter",
-            "openrouter:relace/relace-apply-3": "openrouter",
-            "openrouter:google/gemini-2.5-flash-preview-09-2025": "openrouter",
-            "openrouter:google/gemini-2.5-flash-lite-preview-09-2025": "openrouter",
-            "openrouter:qwen/qwen3-vl-235b-a22b-thinking": "openrouter",
-            "openrouter:qwen/qwen3-vl-235b-a22b-instruct": "openrouter",
             "openrouter:qwen/qwen3-max": "openrouter",
             "openrouter:qwen/qwen3-coder-plus": "openrouter",
             "openrouter:openai/gpt-5-codex": "openrouter",
@@ -456,26 +465,6 @@ class PuterClient:
             "openrouter:aion-labs/aion-1.0": "openrouter",
             "openrouter:aion-labs/aion-1.0-mini": "openrouter",
             "openrouter:aion-labs/aion-rp-llama-3.1-8b": "openrouter",
-            "openrouter:qwen/qwen-vl-max": "openrouter",
-            "openrouter:qwen/qwen-turbo": "openrouter",
-            "openrouter:qwen/qwen2.5-vl-72b-instruct": "openrouter",
-            "openrouter:qwen/qwen-plus": "openrouter",
-            "openrouter:qwen/qwen-max": "openrouter",
-            "openrouter:openai/o3-mini": "openrouter",
-            "openrouter:mistralai/mistral-small-24b-instruct-2501:free": "openrouter",
-            "openrouter:mistralai/mistral-small-24b-instruct-2501": "openrouter",
-            "openrouter:deepseek/deepseek-r1-distill-qwen-32b": "openrouter",
-            "openrouter:deepseek/deepseek-r1-distill-qwen-14b": "openrouter",
-            "openrouter:perplexity/sonar-reasoning": "openrouter",
-            "openrouter:perplexity/sonar": "openrouter",
-            "openrouter:deepseek/deepseek-r1-distill-llama-70b:free": "openrouter",
-            "openrouter:deepseek/deepseek-r1-distill-llama-70b": "openrouter",
-            "openrouter:deepseek/deepseek-r1:free": "openrouter",
-            "openrouter:deepseek/deepseek-r1": "openrouter",
-            "openrouter:cohere/command-r7b-12-2024": "openrouter",
-            "openrouter:cohere/command-r-plus-08-2024": "openrouter",
-            "openrouter:sao10k/l3.1-euryale-70b": "openrouter",
-            "openrouter:qwen/qwen-vl-plus": "openrouter",
             "openrouter:qwen/qwen-vl-max": "openrouter",
             "openrouter:qwen/qwen-turbo": "openrouter",
             "openrouter:qwen/qwen2.5-vl-72b-instruct": "openrouter",
@@ -671,7 +660,6 @@ class PuterClient:
             "togetherai:stabilityai/stable-diffusion-xl-base-1.0": "together-ai",
         }
         # For these models, per puter.js docs, temperature must be 1 by default
-        # and should be enforced regardless of user-provided options.
         self.force_temperature_1_models = {
             "gpt-5-2025-08-07",
             "gpt-5-mini-2025-08-07",
@@ -696,24 +684,67 @@ class PuterClient:
         ]
         self.max_retries = 3
 
-    def login(self, username: str, password: str) -> str:
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create the aiohttp ClientSession with proper SSL and timeout settings."""
+        if self._session is None or self._session.closed:
+            # Configure SSL context with certifi
+            if self.ignore_ssl:
+                 ssl_context = False
+            else:
+                ssl_context = ssl.create_default_context(cafile=certifi.where())
+            
+            # Force IPv4 to avoid Windows semaphore timeout issues with IPv6
+            connector = aiohttp.TCPConnector(
+                ssl=ssl_context,
+                family=socket.AF_INET,
+                limit=100
+            )
+            
+            # Explicit timeout
+            timeout = aiohttp.ClientTimeout(total=60)
+            
+            self._session = aiohttp.ClientSession(
+                headers=self.headers,
+                connector=connector,
+                timeout=timeout,
+                trust_env=True  # Respect system proxies
+            )
+        return self._session
+
+    async def __aenter__(self):
+        await self._get_session()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self._session:
+            await self._session.close()
+
+    async def close(self):
+        """Manually close the session."""
+        if self._session:
+            await self._session.close()
+
+    async def login(self, username: str, password: str) -> str:
+        """
+        Asynchronously login to Puter.
+        """
         username = sanitize_string(username)
         password = sanitize_string(password)
         payload = {"username": username, "password": password}
+        session = await self._get_session()
+        
         try:
-            response = requests.post(
-                self.login_url, headers=self.headers, json=payload
-            )
-            response.raise_for_status()
-            data = response.json()
-            if data.get("proceed"):
-                self.token = data["token"]
-                logger.info("Login successful, token acquired")
-                return self.token
-            else:
-                logger.warning("Login failed: Invalid credentials")
-                raise ValueError("Login failed. Please check your credentials.")
-        except requests.RequestException as e:
+            async with session.post(self.login_url, json=payload) as response:
+                response.raise_for_status()
+                data = await response.json()
+                if data.get("proceed"):
+                    self.token = data["token"]
+                    logger.info("Login successful, token acquired")
+                    return self.token
+                else:
+                    logger.warning("Login failed: Invalid credentials")
+                    raise ValueError("Login failed. Please check your credentials.")
+        except aiohttp.ClientError as e:
             logger.warning(f"Login error: {e}")
             raise ValueError(f"Login error: {e}")
 
@@ -722,84 +753,84 @@ class PuterClient:
             logger.error("Authentication error: No token available")
             raise ValueError("Not authenticated. Please login first.")
         return {
-            **self.headers,
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json",
         }
 
-    def fs_write(
+    async def fs_write(
         self, path: str, content: Union[str, bytes, Any]
     ) -> Dict[str, Any]:
         """
-        Write content to a file in Puter FS.
-        If content is str or bytes, send directly. If file-like, read it.
-        Returns the file info.
+        Write content to a file in Puter FS asynchronously.
         """
         path = sanitize_string(path, allow_path=True)
         headers = self._get_auth_headers()
-        headers.pop("Content-Type")
+        headers.pop("Content-Type") 
+        
         if isinstance(content, str):
             content = content.encode("utf-8")
-        if not isinstance(content, bytes):
-            if hasattr(content, "read"):
-                content = content.read()
-            else:
-                logger.warning("Invalid content type for fs_write")
-                raise ValueError(
-                    "Content must be str, bytes, or file-like object."
-                )
+        
+        if not isinstance(content, bytes) and not hasattr(content, "read"):
+             logger.warning("Invalid content type for fs_write")
+             raise ValueError("Content must be str, bytes, or file-like object.")
+
+        session = await self._get_session()
         try:
-            response = requests.post(
+            async with session.post(
                 f"{self.api_base}/write",
                 params={"path": path},
                 data=content,
                 headers=headers,
-            )
-            response.raise_for_status()
-            logger.info(f"File written successfully at {path}")
-            return response.json()
-        except requests.RequestException as e:
+            ) as response:
+                response.raise_for_status()
+                data = await response.json()
+                logger.info(f"File written successfully at {path}")
+                return data
+        except aiohttp.ClientError as e:
             logger.warning(f"fs_write error: {e}")
             raise
 
-    def fs_read(self, path: str) -> bytes:
+    async def fs_read(self, path: str) -> bytes:
         """
-        Read file content from Puter FS.
+        Read file content from Puter FS asynchronously.
         """
         path = sanitize_string(path, allow_path=True)
         headers = self._get_auth_headers()
+        session = await self._get_session()
         try:
-            response = requests.get(
+            async with session.get(
                 f"{self.api_base}/read",
                 params={"path": path},
                 headers=headers,
-            )
-            response.raise_for_status()
-            logger.info(f"File read successfully from {path}")
-            return response.content
-        except requests.RequestException as e:
+            ) as response:
+                response.raise_for_status()
+                content = await response.read()
+                logger.info(f"File read successfully from {path}")
+                return content
+        except aiohttp.ClientError as e:
             logger.warning(f"fs_read error: {e}")
             raise
 
-    def fs_delete(self, path: str) -> None:
+    async def fs_delete(self, path: str) -> None:
         """
-        Delete a file or directory in Puter FS.
+        Delete a file or directory in Puter FS asynchronously.
         """
         path = sanitize_string(path, allow_path=True)
         headers = self._get_auth_headers()
+        session = await self._get_session()
         try:
-            response = requests.post(
+            async with session.post(
                 f"{self.api_base}/delete",
                 params={"path": path},
                 headers=headers,
-            )
-            response.raise_for_status()
-            logger.info(f"File deleted successfully at {path}")
-        except requests.RequestException as e:
+            ) as response:
+                response.raise_for_status()
+                logger.info(f"File deleted successfully at {path}")
+        except aiohttp.ClientError as e:
             logger.warning(f"fs_delete error: {e}")
             raise
 
-    def ai_chat(
+    async def ai_chat(
         self,
         prompt: Optional[Union[str, List[Dict[str, Any]]]] = None,
         options: Optional[Dict[str, Any]] = None,
@@ -808,23 +839,20 @@ class PuterClient:
         messages: Optional[List[Dict[str, Any]]] = None,
         retry_count: int = 0,
         strict_model: bool = False,
-    ) -> Union[Dict[str, Any], Generator[Tuple[str, str], None, None]]:
+    ) -> Union[Dict[str, Any], AsyncGenerator[Tuple[str, str], None]]:
         """
         AI chat completion, supporting multiple models with fallback and retries.
-        Returns: For stream, a generator of (content, used_model) tuples; for non-stream, a dict with response and used_model.
         """
         if options is None:
             options = {}
         model = options.get("model", self.fallback_models[0])
         driver = self.model_to_driver.get(model, "openai-completion")
         stream = options.get("stream", False)
-        # Default temperature, overridden for specific models below
+        
         temperature = options.get("temperature", 0.7)
         if model in self.force_temperature_1_models:
             if temperature != 1:
-                logger.info(
-                    f"Overriding temperature to 1 for model '{model}' as per puter.js requirements"
-                )
+                logger.info(f"Overriding temperature to 1 for model '{model}'")
             temperature = 1
         max_tokens = options.get("max_tokens", 1000)
 
@@ -866,400 +894,249 @@ class PuterClient:
         }
 
         headers = self._get_auth_headers()
-        try:
-            logger.info(
-                f"Sending ai_chat request with model {model}, "
-                f"driver {driver}, stream={stream}, "
-                f"test_mode={test_mode}, retry={retry_count}"
-            )
-            logger.debug(f"Payload: {json.dumps(payload, indent=2)}")
-            response = requests.post(
-                f"{self.api_base}/drivers/call",
-                json=payload,
-                headers=headers,
-                stream=stream,
-            )
-            response.raise_for_status()
+        session = await self._get_session()
 
-            def check_used_model(
-                data: Dict[str, Any], requested_model: str, strict: bool
-            ) -> str:
-                """Extract used model from response metadata and validate."""
-                used_model = None
-                if (
-                    "result" in data
-                    and "usage" in data["result"]
-                    and data["result"]["usage"]
-                ):
-                    used_model = data["result"]["usage"][0].get("model", "unknown")
-                elif "metadata" in data and "service_used" in data["metadata"]:
-                    used_model = data["metadata"].get("service_used", "unknown")
-                if used_model and used_model != requested_model:
-                    msg = (
-                        f"Requested model {requested_model}, "
-                        f"but server used {used_model}"
-                    )
-                    if strict:
-                        raise ValueError(msg)
-                    else:
-                        logger.warning(msg)
-                return used_model or requested_model
+        def check_used_model(data: Dict[str, Any], requested_model: str, strict: bool) -> str:
+            used_model = None
+            if "result" in data and "usage" in data["result"] and data["result"]["usage"]:
+                used_model = data["result"]["usage"][0].get("model", "unknown")
+            elif "metadata" in data and "service_used" in data["metadata"]:
+                used_model = data["metadata"].get("service_used", "unknown")
+            
+            if used_model and used_model != requested_model:
+                msg = f"Requested model {requested_model}, but server used {used_model}"
+                if strict:
+                    raise ValueError(msg)
+                else:
+                    logger.warning(msg)
+            return used_model or requested_model
 
-            def process_line(
-                line: bytes, requested_model: str, strict: bool
-            ) -> Optional[tuple[str, str]]:
-                if not line:
-                    return None
-                logger.debug(f"Raw stream line: {line}")
-                try:
-                    data = json.loads(line)
-                    if not data.get("success", True):
-                        error_data = data.get("error", {})
-                        error_code = error_data.get("code")
-                        error_msg = error_data.get("message", "Unknown error")
-                        raise ValueError(
-                            f"API error: {error_msg} (code: {error_code})"
-                        )
-                    used_model = check_used_model(data, requested_model, strict)
-                    # Handle custom text response format
-                    if "type" in data and data["type"] == "text" and "text" in data:
-                        content = data["text"]
-                        if content:
-                            logger.info("Processed custom text JSON streaming response")
-                            return content, used_model
-                    # Handle Claude-style response
-                    if "result" in data and "message" in data["result"]:
-                        message_content = data["result"]["message"].get(
-                            "content", ""
-                        )
-                        if isinstance(message_content, str):
-                            logger.info(
-                                "Processed string content JSON streaming response"
-                            )
-                            return message_content, used_model
-                        elif isinstance(message_content, list):
-                            content = message_content[0].get("text", "")
-                            if content:
-                                logger.info(
-                                    "Processed list content JSON streaming response"
-                                )
-                                return content, used_model
-                            else:
-                                logger.warning(
-                                    f"No text in list content: {message_content}"
-                                )
-                        else:
-                            logger.warning(
-                                f"Unexpected content type: {type(message_content)}"
-                            )
-                    # Handle OpenAI-style response
-                    if "choices" in data:
-                        content = (
-                            data.get("choices", [{}])[0]
-                            .get("delta", {})
-                            .get("content", "")
-                        )
-                        if content:
-                            logger.info("Processed OpenAI-style JSON streaming response")
-                            return content, used_model
-                        else:
-                            logger.warning(f"No content in OpenAI-style response: {data}")
-                    logger.warning(f"Unexpected JSON response format: {data}")
-                except json.JSONDecodeError:
-                    # Handle SSE format
-                    if line.startswith(b"data: "):
-                        try:
-                            data = json.loads(line[6:])
-                            if not data.get("success", True):
-                                error_data = data.get("error", {})
-                                error_code = error_data.get("code")
-                                error_msg = data.get("message", "Unknown error")
-                                raise ValueError(
-                                    f"API error: {error_msg} (code: {error_code})"
-                                )
-                            used_model = check_used_model(data, requested_model, strict)
-                            content = data.get("text", "")
-                            if content:
-                                logger.info("Processed SSE streaming response")
-                                return content, used_model
-                            else:
-                                logger.warning(f"No text in SSE data: {data}")
-                        except json.JSONDecodeError:
-                            logger.warning(f"Invalid SSE data: {line}")
-                    else:
-                        # Treat as plain text
-                        decoded_line = line.decode("utf-8", errors="ignore")
-                        if decoded_line.strip():
-                            logger.info("Processed plain text streaming response")
-                            return decoded_line, requested_model
-                        else:
-                            logger.warning(f"Empty or invalid stream line: {line}")
+        def process_line(line: bytes, requested_model: str, strict: bool) -> Optional[Tuple[str, str]]:
+            if not line:
                 return None
+            logger.debug(f"Raw stream line: {line}")
+            try:
+                data = json.loads(line)
+                if not data.get("success", True):
+                    error_data = data.get("error", {})
+                    error_msg = error_data.get("message", "Unknown error")
+                    raise ValueError(f"API error: {error_msg} (code: {error_data.get('code')})")
+                
+                used_model = check_used_model(data, requested_model, strict)
+                
+                # Custom text format
+                if "type" in data and data["type"] == "text" and "text" in data:
+                    content = data["text"]
+                    if content:
+                        return content, used_model
+                        
+                # Claude-style
+                if "result" in data and "message" in data["result"]:
+                    msg_content = data["result"]["message"].get("content", "")
+                    if isinstance(msg_content, str):
+                        return msg_content, used_model
+                    elif isinstance(msg_content, list):
+                        content = msg_content[0].get("text", "")
+                        if content:
+                            return content, used_model
+                            
+                # OpenAI-style
+                if "choices" in data:
+                    content = data.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                    if content:
+                        return content, used_model
+                        
+            except json.JSONDecodeError:
+                if line.startswith(b"data: "):
+                    try:
+                        data = json.loads(line[6:])
+                        if not data.get("success", True):
+                            raise ValueError(f"API error: {data.get('message')}")
+                        used_model = check_used_model(data, requested_model, strict)
+                        content = data.get("text", "")
+                        if content:
+                            return content, used_model
+                    except json.JSONDecodeError:
+                        pass
+                else:
+                    decoded = line.decode("utf-8", errors="ignore")
+                    if decoded.strip():
+                        return decoded, requested_model
+            return None
+
+        try:
+            logger.info(f"Sending ai_chat request: model={model}, stream={stream}")
+            
+            async def handle_error(error_msg, error_code=None):
+                is_forbidden = error_code in ("no_implementation_available", "forbidden")
+                if is_forbidden and retry_count < self.max_retries:
+                    if strict_model:
+                        raise ValueError(f"Model {model} unavailable (strict mode).")
+                    
+                    if not test_mode:
+                        logger.warning(f"Retrying {model} with test_mode=True")
+                        return await self.ai_chat(
+                            prompt=prompt, options=options, test_mode=True,
+                            image_url=image_url, messages=messages,
+                            retry_count=retry_count + 1, strict_model=strict_model
+                        )
+                    
+                    # Fallback
+                    if model in self.fallback_models:
+                        idx = self.fallback_models.index(model)
+                        next_idx = idx + 1
+                    else:
+                        next_idx = 0
+                        
+                    if next_idx < len(self.fallback_models):
+                        next_model = self.fallback_models[next_idx]
+                        logger.warning(f"Fallback from {model} to {next_model}")
+                        options["model"] = next_model
+                        await asyncio.sleep(1)
+                        return await self.ai_chat(
+                            prompt=prompt, options=options, test_mode=test_mode,
+                            image_url=image_url, messages=messages,
+                            retry_count=retry_count + 1, strict_model=strict_model
+                        )
+                raise ValueError(f"AI chat error: {error_msg}")
 
             if stream:
-                line_iter = response.iter_lines()
-                # Peek at the first line to check for errors
-                first_line = next(line_iter, None)
-                if first_line:
+                response = await session.post(
+                    f"{self.api_base}/drivers/call",
+                    json=payload,
+                    headers=headers,
+                )
+                response.raise_for_status()
+
+                async def async_generator():
                     try:
-                        # Process first line to check for error
-                        processed = process_line(first_line, model, strict_model)
-                        if processed is None:
-                            # If no content, but no raise, continue
-                            pass
-                    except ValueError as e:
-                        error_msg = str(e)
-                        if "API error" in error_msg:
-                            # Extract code if possible
-                            if "(code: " in error_msg:
-                                error_code = error_msg.split("(code: ")[1][:-1]
-                            else:
-                                error_code = None
-                            if error_code in (
-                                "no_implementation_available",
-                                "forbidden",
-                            ) and retry_count < self.max_retries:
-                                if strict_model:
-                                    raise ValueError(
-                                        f"Model {model} not available due to "
-                                        "permission issues or implementation. "
-                                        "Since strict_model is True, no fallback."
-                                    )
-                                else:
-                                    if not test_mode:
-                                        logger.warning(
-                                            f"Model {model} not available, "
-                                            f"retrying with test_mode=True, "
-                                            f"attempt {retry_count + 1}"
-                                        )
-                                        return self.ai_chat(
-                                            prompt=prompt,
-                                            options=options,
-                                            test_mode=True,
-                                            image_url=image_url,
-                                            messages=messages,
-                                            retry_count=retry_count + 1,
-                                            strict_model=strict_model,
-                                        )
-                                    # Fallback to another model
-                                    current_model_index = (
-                                        self.fallback_models.index(model)
-                                        if model in self.fallback_models
-                                        else -1
-                                    )
-                                    next_model_index = (
-                                        current_model_index + 1
-                                        if current_model_index >= 0
-                                        else 0
-                                    )
-                                    if next_model_index < len(self.fallback_models):
-                                        next_model = self.fallback_models[
-                                            next_model_index
-                                        ]
-                                        logger.warning(
-                                            f"Model {model} (driver {driver}) "
-                                            f"not available, retrying with "
-                                            f"model {next_model}, "
-                                            f"attempt {retry_count + 1}"
-                                        )
-                                        options["model"] = next_model
-                                        time.sleep(1)
-                                        return self.ai_chat(
-                                            prompt=prompt,
-                                            options=options,
-                                            test_mode=test_mode,
-                                            image_url=image_url,
-                                            messages=messages,
-                                            retry_count=retry_count + 1,
-                                            strict_model=strict_model,
-                                        )
-                                    else:
-                                        logger.error(
-                                            f"No more fallback models available "
-                                            f"after {model}."
-                                        )
-                                        raise
-                            else:
-                                raise
-                        else:
-                            raise
-                # If no error, create generator that yields processed first and then others
-                def generator():
-                    if first_line:
-                        processed = process_line(first_line, model, strict_model)
-                        if processed:
-                            yield processed
-                    for line in line_iter:
-                        processed = process_line(line, model, strict_model)
-                        if processed:
-                            yield processed
+                        async for line in response.content:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                processed = process_line(line, model, strict_model)
+                                if processed:
+                                    yield processed
+                            except ValueError as e:
+                                raise e
+                    except Exception as e:
+                        response.close()
+                        raise e
 
-                logger.info("ai_chat stream request initiated")
-                return generator()
+                return async_generator()
+            
             else:
-                result = response.json()
-                if not result.get("success", True):
-                    error_data = result.get("error", {})
-                    error_code = error_data.get("code")
-                    error_msg = error_data.get("message", "Unknown error")
-                    if error_code in (
-                        "no_implementation_available",
-                        "forbidden",
-                    ) and retry_count < self.max_retries:
-                        if strict_model:
-                            raise ValueError(
-                                f"Model {model} not available due to "
-                                "permission issues or implementation. "
-                                "Since strict_model is True, no fallback."
-                            )
-                        else:
-                            if not test_mode:
-                                logger.warning(
-                                    f"Model {model} not available, "
-                                    f"retrying with test_mode=True, "
-                                    f"attempt {retry_count + 1}"
-                                )
-                                return self.ai_chat(
-                                    prompt=prompt,
-                                    options=options,
-                                    test_mode=True,
-                                    image_url=image_url,
-                                    messages=messages,
-                                    retry_count=retry_count + 1,
-                                    strict_model=strict_model,
-                                )
-                            # Fallback to another model
-                            current_model_index = (
-                                self.fallback_models.index(model)
-                                if model in self.fallback_models
-                                else -1
-                            )
-                            next_model_index = (
-                                current_model_index + 1
-                                if current_model_index >= 0
-                                else 0
-                            )
-                            if next_model_index < len(self.fallback_models):
-                                next_model = self.fallback_models[next_model_index]
-                                logger.warning(
-                                    f"Model {model} (driver {driver}) "
-                                    f"not available, retrying with "
-                                    f"model {next_model}, "
-                                    f"attempt {retry_count + 1}"
-                                )
-                                options["model"] = next_model
-                                time.sleep(1)
-                                return self.ai_chat(
-                                    prompt=prompt,
-                                    options=options,
-                                    test_mode=test_mode,
-                                    image_url=image_url,
-                                    messages=messages,
-                                    retry_count=retry_count + 1,
-                                    strict_model=strict_model,
-                                )
-                            else:
-                                logger.error(
-                                    f"No more fallback models available "
-                                    f"after {model}."
-                                )
-                                raise ValueError(
-                                    f"No implementation available for "
-                                    f"model {model}: {error_msg}"
-                                )
-                    else:
-                        logger.error(f"AI chat error: {error_msg}")
-                        raise ValueError(f"AI chat error: {error_msg}")
-                used_model = check_used_model(result, model, strict_model)
-                logger.info(f"ai_chat request successful, used model: {used_model}")
-                return {"response": result, "used_model": used_model}
+                async with session.post(
+                    f"{self.api_base}/drivers/call",
+                    json=payload,
+                    headers=headers,
+                ) as response:
+                    response.raise_for_status()
+                    result = await response.json()
+                    
+                    if not result.get("success", True):
+                        err = result.get("error", {})
+                        await handle_error(err.get("message"), err.get("code"))
+                    
+                    used_model = check_used_model(result, model, strict_model)
+                    return {"response": result, "used_model": used_model}
 
-        except requests.RequestException as e:
+        except aiohttp.ClientError as e:
             logger.error(f"ai_chat request failed: {e}")
             raise
 
-    def ai_img2txt(self, image: Union[str, Any], test_mode: bool = False) -> str:
+    async def ai_img2txt(self, image: Union[str, Any], test_mode: bool = False) -> str:
         """
-        Image to text (OCR).
-        image: URL or file-like.
+        Image to text (OCR) asynchronously.
         """
         headers = self._get_auth_headers()
+        session = await self._get_session()
+        
         try:
             if isinstance(image, str):
                 safe_url = sanitize_url(image)
                 payload = {"image_url": safe_url, "testMode": test_mode}
-                response = requests.post(
+                async with session.post(
                     f"{self.api_base}/ai/img2txt",
                     json=payload,
                     headers=headers,
-                )
+                ) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+                    return data.get("text")
             else:
-                files = {"image": image}
-                response = requests.post(
+                data = aiohttp.FormData()
+                data.add_field('testMode', str(test_mode).lower())
+                data.add_field('image', image)
+                headers.pop("Content-Type", None)
+                
+                async with session.post(
                     f"{self.api_base}/ai/img2txt",
-                    files=files,
-                    data={"testMode": test_mode},
+                    data=data,
                     headers=headers,
-                )
-            response.raise_for_status()
-            logger.info("ai_img2txt request successful")
-            return response.json().get("text")
-        except requests.RequestException as e:
+                ) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+                    return data.get("text")
+        except aiohttp.ClientError as e:
             logger.warning(f"ai_img2txt error: {e}")
             raise
 
-    def ai_txt2img(self, prompt: str, model: str = "pollinations-image", test_mode: bool = False) -> str:
+    async def ai_txt2img(self, prompt: str, model: str = "pollinations-image", test_mode: bool = False) -> str:
         """
-        Text to image using Puter's driver API.
-        Returns image URL.
+        Text to image using Puter's driver API asynchronously.
         """
         payload = {
             "interface": "puter-image-generation",
-            "driver": model,  # or other supported image model in puter.js docs
+            "driver": model,
             "method": "generate",
-            "args": {
-                "prompt": prompt
-            },
+            "args": {"prompt": prompt},
             "testMode": test_mode
         }
-
         headers = self._get_auth_headers()
+        session = await self._get_session()
+        
         try:
-            response = requests.post(f"{self.api_base}/drivers/call", json=payload, headers=headers)
-            response.raise_for_status()
-            data = response.json()
-            if "result" in data and "image_url" in data["result"]:
-                return data["result"]["image_url"]
-            elif "result" in data and isinstance(data["result"], dict):
-                # Some models might return base64 or direct data URL
-                return data["result"].get("url") or data["result"].get("data")
-            else:
-                raise ValueError(f"Unexpected response format: {data}")
-        except requests.RequestException as e:
+            async with session.post(
+                f"{self.api_base}/drivers/call",
+                json=payload,
+                headers=headers
+            ) as response:
+                response.raise_for_status()
+                data = await response.json()
+                
+                if "result" in data and "image_url" in data["result"]:
+                    return data["result"]["image_url"]
+                elif "result" in data and isinstance(data["result"], dict):
+                    return data["result"].get("url") or data["result"].get("data")
+                else:
+                    raise ValueError(f"Unexpected response format: {data}")
+        except aiohttp.ClientError as e:
             logger.warning(f"ai_txt2img error: {e}")
             raise
 
-    def ai_txt2speech(
+    async def ai_txt2speech(
         self, text: str, options: Optional[Dict[str, Any]] = None
     ) -> bytes:
         """
-        Text to speech.
-        Returns MP3 bytes.
+        Text to speech asynchronously. Returns MP3 bytes.
         """
         if options is None:
             options = {}
-        # Allow natural language text
         payload = {"text": text, "testMode": options.get("testMode", False)}
         headers = self._get_auth_headers()
+        session = await self._get_session()
+        
         try:
-            response = requests.post(
+            async with session.post(
                 f"{self.api_base}/ai/txt2speech",
                 json=payload,
                 headers=headers,
-            )
-            response.raise_for_status()
-            logger.info("ai_txt2speech request successful")
-            return response.content
-        except requests.RequestException as e:
+            ) as response:
+                response.raise_for_status()
+                logger.info("ai_txt2speech request successful")
+                return await response.read()
+        except aiohttp.ClientError as e:
             logger.warning(f"ai_txt2speech error: {e}")
             raise
