@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import re
 import ssl
 import socket
 from typing import (
@@ -13,42 +12,43 @@ from typing import (
     Union,
     AsyncGenerator,
 )
-from urllib.parse import urlparse
 
 import aiohttp
 import certifi
+from pydantic import BaseModel, Field, ConfigDict, HttpUrl
+
+from datetime import datetime, timedelta
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-__version__ = '2.0.1'
+__version__ = '2.0.2'
 
 
-def sanitize_string(s: str, allow_empty: bool = False, allow_path: bool = False) -> str:
-    """
-    Sanitize user input for usernames, passwords, and file paths only.
-    For chat and prompt text, allow natural language (no sanitization).
-    """
-    if not isinstance(s, str):
-        raise ValueError("Input must be a string.")
-    s = s.strip()
-    if not allow_empty and not s:
-        raise ValueError("Input cannot be empty.")
-    if allow_path:
-        pattern = r'^[\w\-\.\/]+$'
-        if not re.match(pattern, s):
-            raise ValueError("Input contains invalid characters for path.")
-    return s
+class NonEmptyStr(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+    value: str = Field(..., min_length=1)
+
+class PathStr(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+    value: str = Field(..., min_length=1, pattern=r'^[\w\-\.\/]+$')
+
+def validate_string(s: str) -> str:
+    """Validate non-empty string (strip whitespace)."""
+    return NonEmptyStr.model_validate({"value": s}).value
+
+def validate_path(p: str) -> str:
+    """Validate path string (non-empty, alphanumeric/.-/)."""
+    return PathStr.model_validate({"value": p}).value
 
 
-def sanitize_url(url: str) -> str:
-    if not isinstance(url, str):
-        raise ValueError("Invalid URL: not a string.")
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        raise ValueError("Invalid URL.")
-    return url
+class UrlStr(BaseModel):
+    value: HttpUrl
+
+def validate_url(u: str) -> str:
+    """Validate HTTP/HTTPS URL."""
+    return UrlStr.model_validate({"value": u}).value
 
 
 class PuterClient:
@@ -56,9 +56,10 @@ class PuterClient:
     Asynchronous Client for the Puter.com API.
     """
 
-    def __init__(self, token: Optional[str] = None, ignore_ssl: bool = False):
+    def __init__(self, token: Optional[str] = None, ignore_ssl: bool = False, auto_update_models: bool = False):
         self.token = token
         self.ignore_ssl = ignore_ssl
+        self.auto_update_models = auto_update_models
         self.api_base = "https://api.puter.com"
         self.login_url = "https://puter.com/login"
         self._session: Optional[aiohttp.ClientSession] = None
@@ -683,6 +684,9 @@ class PuterClient:
             "deepseek-chat",
         ]
         self.max_retries = 3
+        self._models_cache = None
+        self._cache_timestamp = None
+        self._cache_ttl = timedelta(hours=1)
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create the aiohttp ClientSession with proper SSL and timeout settings."""
@@ -713,6 +717,8 @@ class PuterClient:
 
     async def __aenter__(self):
         await self._get_session()
+        if self.auto_update_models and self.token:
+            await self.update_model_mappings()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -724,12 +730,96 @@ class PuterClient:
         if self._session:
             await self._session.close()
 
+    async def get_available_models(self, force_refresh: bool = False) -> Dict[str, List[str]]:
+        """Получить список доступных AI-моделей из API Puter.com.
+
+        Использует кэширование с TTL 1 час.
+
+        Args:
+            force_refresh: Принудительно обновить кэш.
+
+        Returns:
+            Словарь с ключом 'models' - список строк моделей.
+
+        Raises:
+            aiohttp.ClientError: При ошибке запроса без кэша.
+        """
+        session = await self._get_session()
+
+        # Проверка кэша
+        if (
+            not force_refresh
+            and self._models_cache is not None
+            and self._cache_timestamp is not None
+            and datetime.now() - self._cache_timestamp < self._cache_ttl
+        ):
+            logger.info(f"Возвращаем {len(self._models_cache['models'])} моделей из кэша")
+            return self._models_cache
+
+        url = "https://puter.com/puterai/chat/models"
+        try:
+            async with session.get(url, headers=self._get_auth_headers()) as response:
+                response.raise_for_status()
+                data: Dict[str, List[str]] = await response.json()
+                self._models_cache = data
+                self._cache_timestamp = datetime.now()
+                logger.info(f"Получено {len(data['models'])} моделей")
+                return data
+        except aiohttp.ClientError as e:
+            logger.error(f"Ошибка получения моделей: {e}")
+            if self._models_cache is not None:
+                logger.warning("Используем кэшированные модели")
+                return self._models_cache
+            else:
+                raise
+
+    async def update_model_mappings(self) -> None:
+        """Автоматически обновить self.model_to_driver из доступных моделей."""
+        models_data = await self.get_available_models()
+        new_mappings: Dict[str, str] = {}
+        for model in models_data["models"]:
+            model_lower = model.lower()
+            if model.startswith("openrouter:"):
+                new_mappings[model] = "openrouter"
+            elif model.startswith("togetherai:"):
+                new_mappings[model] = "together-ai"
+            elif "claude" in model_lower:
+                new_mappings[model] = "claude"
+            elif "mistral" in model_lower:
+                new_mappings[model] = "mistral"
+            elif "grok" in model_lower:
+                new_mappings[model] = "xai"
+            elif "deepseek" in model_lower:
+                new_mappings[model] = "deepseek"
+            elif "gemini" in model_lower:
+                new_mappings[model] = "google"
+            elif model.startswith("gpt-") or model.startswith(("o1", "o3", "o4")):
+                new_mappings[model] = "openai-completion"
+            elif "/" in model:
+                new_mappings[model] = "together-ai"
+            else:
+                new_mappings[model] = "openai-completion"
+        self.model_to_driver.update(new_mappings)
+        logger.info(f"Обновлено маппингов для {len(new_mappings)} моделей")
+
+    async def is_model_available(self, model_name: str) -> bool:
+        """Проверить доступность модели в актуальном списке.
+
+        Args:
+            model_name: Название модели.
+
+        Returns:
+            bool: Доступна ли модель.
+        """
+        models_data = await self.get_available_models()
+        return model_name in models_data.get("models", [])
+
     async def login(self, username: str, password: str) -> str:
         """
         Asynchronously login to Puter.
         """
-        username = sanitize_string(username)
-        password = sanitize_string(password)
+        username = validate_string(username)
+        password = validate_string(password)
         payload = {"username": username, "password": password}
         session = await self._get_session()
         
@@ -763,7 +853,7 @@ class PuterClient:
         """
         Write content to a file in Puter FS asynchronously.
         """
-        path = sanitize_string(path, allow_path=True)
+        path = validate_path(path)
         headers = self._get_auth_headers()
         headers.pop("Content-Type") 
         
@@ -794,7 +884,7 @@ class PuterClient:
         """
         Read file content from Puter FS asynchronously.
         """
-        path = sanitize_string(path, allow_path=True)
+        path = validate_path(path)
         headers = self._get_auth_headers()
         session = await self._get_session()
         try:
@@ -815,7 +905,7 @@ class PuterClient:
         """
         Delete a file or directory in Puter FS asynchronously.
         """
-        path = sanitize_string(path, allow_path=True)
+        path = validate_path(path)
         headers = self._get_auth_headers()
         session = await self._get_session()
         try:
@@ -869,7 +959,7 @@ class PuterClient:
                         else content
                     )
                     for url in image_url:
-                        safe_url = sanitize_url(url)
+                        safe_url = validate_url(url)
                         content_parts.append(
                             {"type": "image_url", "image_url": {"url": safe_url}}
                         )
@@ -883,6 +973,7 @@ class PuterClient:
             "max_tokens": max_tokens,
             "temperature": temperature,
             "tools": options.get("tools"),
+            "testMode": test_mode,
         }
         payload = {
             "interface": "puter-chat-completion",
@@ -890,7 +981,7 @@ class PuterClient:
             "method": "complete",
             "args": args,
             "stream": stream,
-            "testMode": test_mode,
+            "test_mode": test_mode,
         }
 
         headers = self._get_auth_headers()
@@ -1055,7 +1146,7 @@ class PuterClient:
         
         try:
             if isinstance(image, str):
-                safe_url = sanitize_url(image)
+                safe_url = validate_url(image)
                 payload = {"image_url": safe_url, "testMode": test_mode}
                 async with session.post(
                     f"{self.api_base}/ai/img2txt",
@@ -1091,8 +1182,10 @@ class PuterClient:
             "interface": "puter-image-generation",
             "driver": model,
             "method": "generate",
-            "args": {"prompt": prompt},
-            "testMode": test_mode
+            "args": {
+                "prompt": prompt,
+                "testMode": test_mode
+            }
         }
         headers = self._get_auth_headers()
         session = await self._get_session()
