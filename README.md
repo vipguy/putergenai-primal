@@ -2,9 +2,8 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.11--3.14-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT)
-[![PyPI Version](https://img.shields.io/badge/pypi-2.0.1-blue)](https://pypi.org/project/putergenai/)
+[![PyPI Version](https://img.shields.io/badge/pypi-2.1.0-blue)](https://pypi.org/project/putergenai/)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](https://img.shields.io/badge/tests-passing-brightgreen)
-[![Security](https://img.shields.io/badge/security-policy-important)](SECURITY.md)
 
 Asynchronous Python client for interacting with the Puter.com API. This SDK provides access to Puter's AI models (including OpenAI GPT, Claude, Mistral, Grok, DeepSeek, and more), file system operations, image generation, OCR, and text-to-speech capabilities.
 
@@ -62,6 +61,32 @@ Authentication is required for most operations. Use your Puter.com username and 
 
 ```python
 await client.login("your_username", "your_password")
+```
+
+### Environment Variables (Recommended)
+
+For testing and development, you can use environment variables. Create a `.env` file in your project root:
+
+```bash
+# Copy the example file
+cp .env.example .env
+
+# Edit .env with your credentials
+PUTER_USERNAME=your_username
+PUTER_PASSWORD=your_password
+```
+
+Then use the credentials in your code:
+
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+username = os.getenv('PUTER_USERNAME')
+password = os.getenv('PUTER_PASSWORD')
+
+await client.login(username, password)
 ```
 
 ## AI Chat Completions
@@ -268,9 +293,6 @@ Contributions are welcome!
 5. Ensure all tests pass
 6. Submit a pull request
 
-## Security
-
-Security issues can be reported via the [Security Policy](SECURITY.md).
 
 ## License
 
