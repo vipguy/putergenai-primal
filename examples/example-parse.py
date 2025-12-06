@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import sys
 import logging
 import re
@@ -80,7 +79,35 @@ async def main():
         if has_dynamic_api:
             try:
                 models_data = await client.get_available_models()
-                available_models = models_data.get('models', [])
+                # Используем новый метод для получения списка ID моделей
+                if hasattr(client, 'get_model_list'):
+                    available_models = client.get_model_list(models_data)
+                else:
+                    # Fallback для обратной совместимости
+                    models = models_data.get('models', [])
+                    def extract_model_id(item):
+                        if isinstance(item, str):
+                            return item
+                        elif isinstance(item, dict):
+                            # Check for None explicitly to distinguish empty strings from missing fields
+                            id_val = item.get("id")
+                            if id_val is not None:
+                                return str(id_val)
+                            name_val = item.get("name")
+                            if name_val is not None:
+                                return str(name_val)
+                            model_val = item.get("model")
+                            if model_val is not None:
+                                return str(model_val)
+                            # Fall back to string representation
+                            return str(item)
+                        else:
+                            return str(item)
+
+                    available_models = [
+                        extract_model_id(m)
+                        for m in models
+                    ]
                 total_models = len(available_models)
                 print(f"✓ Successfully retrieved {total_models} models")
 
