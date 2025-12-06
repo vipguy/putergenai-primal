@@ -1,18 +1,17 @@
-#!filepath pyproject.toml
 [build-system]
 requires = ["setuptools>=80.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "putergenai"
-version = "2.0.2"
+version = "2.1.0"
 authors = [
     { name = "Nerve11", email = "putergenai@outlook.com" },
     { name = "BubblesTheDev", email = "bubblesthedev@fnbubbles420.org" },
 ]
 description = "An asynchronous Python client for the Puter API"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 requires-python = ">=3.11"
 keywords = ["puter", "ai", "sdk", "python", "api", "chat", "gpt", "claude", "async", "aiohttp"]
 classifiers = [
@@ -20,7 +19,6 @@ classifiers = [
     "Environment :: Console",
     "Framework :: AsyncIO",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
@@ -40,6 +38,8 @@ dependencies = [
     "cryptography>=44.0.0",
     "flask>=3.1.2",
     "keyring>=25.5.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.urls]
@@ -57,6 +57,7 @@ dev = [
     "black>=24.0",
     "flake8>=7.0",
     "mypy>=1.8",
+    "python-dotenv>=1.0.0",
 ]
 
 [tool.setuptools]
