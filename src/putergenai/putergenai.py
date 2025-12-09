@@ -731,25 +731,25 @@ class PuterClient:
             await self._session.close()
 
     async def get_available_models(self, force_refresh: bool = False) -> Dict[str, Any]:
-        """Получить список доступных AI-моделей из API Puter.com.
+        """Fetch the list of available AI models from the Puter.com API.
 
-        Использует кэширование с TTL 1 час. API возвращает список моделей,
-        каждая модель может быть строкой или объектом с информацией о модели.
+        Uses caching with a 1-hour TTL. The API returns a list of models,
+        where each entry can be a string or an object with model details.
 
         Args:
-            force_refresh: Принудительно обновить кэш.
+            force_refresh: Force cache refresh.
 
         Returns:
-            Словарь с ключом 'models' - список моделей (строки или объекты).
-            Если модель - объект, может содержать поля: id, name, provider, driver, aliases, etc.
+            Dict with key 'models' - a list of models (strings or objects).
+            If a model is an object, it may include: id, name, provider, driver, aliases, etc.
 
         Raises:
-            aiohttp.ClientError: При ошибке запроса без кэша.
-            ValueError: При неверном формате ответа API.
+            aiohttp.ClientError: On request error when no cache is available.
+            ValueError: On invalid API response format.
         """
         session = await self._get_session()
 
-        # Проверка кэша
+        # Cache check
         if (
             not force_refresh
             and self._models_cache is not None
@@ -757,7 +757,7 @@ class PuterClient:
             and datetime.now() - self._cache_timestamp < self._cache_ttl
         ):
             models_count = len(self._models_cache.get('models', []))
-            logger.info(f"Возвращаем {models_count} моделей из кэша")
+            logger.info(f"Returning {models_count} models from cache")
             return self._models_cache
 
         url = "https://puter.com/puterai/chat/models"
@@ -766,61 +766,60 @@ class PuterClient:
                 response.raise_for_status()
                 data: Dict[str, Any] = await response.json()
                 
-                # Нормализация структуры ответа
+                # Normalize response shape
                 if isinstance(data, list):
-                    # Если ответ - просто список моделей
+                    # Response is just a list of models
                     data = {'models': data}
                 elif not isinstance(data, dict):
-                    raise ValueError(f"Неожиданный формат ответа API: ожидался dict или list, получен {type(data)}")
+                    raise ValueError(f"Unexpected API response format: expected dict or list, got {type(data)}")
 
-                # Проверяем наличие ключа 'models'
+                # Ensure the 'models' key exists
                 if 'models' not in data:
-                    raise ValueError(f"Ответ API не содержит ключ 'models': {list(data.keys())}")
+                    raise ValueError(f"API response missing 'models' key: {list(data.keys())}")
                 
                 models = data['models']
                 if not isinstance(models, list):
-                    raise ValueError(f"Поле 'models' должно быть списком, получен {type(models)}")
+                    raise ValueError(f"Field 'models' must be a list, got {type(models)}")
                 
-                # Нормализуем модели: если это строки, оставляем как есть
-                # Если это объекты, сохраняем их структуру
+                # Normalize models: keep strings as-is, preserve objects
                 normalized_models = []
                 for model in models:
                     if isinstance(model, str):
                         normalized_models.append(model)
                     elif isinstance(model, dict):
-                        # Сохраняем объект модели как есть
+                        # Preserve model object as-is
                         normalized_models.append(model)
                     else:
-                        logger.warning(f"Неожиданный тип модели: {type(model)}, значение: {model}")
-                        # Пытаемся преобразовать в строку
+                        logger.warning(f"Unexpected model type: {type(model)}, value: {model}")
+                        # Try to coerce to string
                         normalized_models.append(str(model))
                 
                 result = {'models': normalized_models}
                 self._models_cache = result
                 self._cache_timestamp = datetime.now()
-                logger.info(f"Получено {len(normalized_models)} моделей из API")
+                logger.info(f"Fetched {len(normalized_models)} models from API")
                 return result
                 
         except aiohttp.ClientError as e:
-            logger.error(f"Ошибка получения моделей: {e}")
+            logger.error(f"Error fetching models: {e}")
             if self._models_cache is not None:
-                logger.warning("Используем кэшированные модели")
+                logger.warning("Using cached models")
                 return self._models_cache
             else:
                 raise
         except (ValueError, KeyError) as e:
-            logger.error(f"Ошибка парсинга ответа API: {e}")
+            logger.error(f"Error parsing API response: {e}")
             if self._models_cache is not None:
-                logger.warning("Используем кэшированные модели")
+                logger.warning("Using cached models")
                 return self._models_cache
             else:
                 raise
 
     async def update_model_mappings(self) -> None:
-        """Автоматически обновить self.model_to_driver из доступных моделей.
-        
-        Использует информацию о драйвере из API, если доступна.
-        В противном случае использует эвристику на основе названия модели.
+        """Automatically refresh self.model_to_driver using available models.
+
+        Uses driver info from the API when present; otherwise applies heuristics
+        based on the model name.
         """
         models_data = await self.get_available_models()
         new_mappings: Dict[str, str] = {}
@@ -830,9 +829,9 @@ class PuterClient:
             driver: Optional[str] = None
             provider: Optional[str] = None
             
-            # Обработка объекта модели
+            # Handle model object
             if isinstance(model_item, dict):
-                # Извлекаем ID модели с безопасной конвертацией в строку
+                # Extract model ID with safe conversion to string
                 id_val = model_item.get("id")
                 if id_val is not None:
                     model_id = str(id_val)
@@ -845,14 +844,14 @@ class PuterClient:
                         if model_val is not None:
                             model_id = str(model_val)
                         else:
-                            logger.warning(f"Модель-объект без ID: {model_item}")
+                            logger.warning(f"Model object without ID: {model_item}")
                             continue
                 
-                # Пытаемся получить драйвер и провайдер из объекта
+                # Attempt to get driver and provider from the object
                 driver = model_item.get("driver")
                 provider = model_item.get("provider")
                 
-                # Если драйвер не указан, но есть provider, используем его
+                # If driver is missing but provider is present, derive from provider
                 if driver is None and provider is not None and isinstance(provider, str):
                     provider_lower = provider.lower()
                     if provider_lower in ("openai", "openai-completion"):
@@ -872,18 +871,18 @@ class PuterClient:
                     elif provider_lower == "openrouter":
                         driver = "openrouter"
             
-            # Обработка строки модели
+            # Handle model string
             elif isinstance(model_item, str):
                 model_id = model_item
             else:
-                logger.warning(f"Неожиданный тип модели: {type(model_item)}")
+                logger.warning(f"Unexpected model item type: {type(model_item)}")
                 continue
             
-            # Если драйвер не найден в объекте, используем эвристику
+            # If driver is still unknown, apply heuristic
             if not driver:
                 model_lower = model_id.lower()
                 
-                # Определение драйвера по префиксу или содержимому
+                # Detect driver by prefix or content
                 if model_id.startswith("openrouter:"):
                     driver = "openrouter"
                 elif model_id.startswith("togetherai:"):
@@ -901,32 +900,32 @@ class PuterClient:
                 elif model_id.startswith("gpt-") or model_id.startswith(("o1", "o3", "o4")):
                     driver = "openai-completion"
                 elif "/" in model_id and not model_id.startswith(("openrouter:", "togetherai:")):
-                    # Модели с "/" обычно TogetherAI
+                    # Models containing "/" are usually TogetherAI
                     driver = "together-ai"
                 else:
-                    # По умолчанию используем openai-completion
+                    # Default to openai-completion
                     driver = "openai-completion"
             
             new_mappings[model_id] = driver
         
-        # Обновляем маппинг
+        # Update mapping
         updated_count = 0
         for model_id, driver in new_mappings.items():
             if model_id not in self.model_to_driver or self.model_to_driver[model_id] != driver:
                 self.model_to_driver[model_id] = driver
                 updated_count += 1
         
-        logger.info(f"Обновлено маппингов: {updated_count} новых/измененных из {len(new_mappings)} моделей")
+        logger.info(f"Mappings updated: {updated_count} new/changed of {len(new_mappings)} models")
 
     def _extract_model_id(self, model_item: Union[str, Dict[str, Any]]) -> str:
-        """Извлечь ID модели из строки или объекта.
+        """Extract a model ID from a string or object.
 
         Args:
-            model_item: Модель как строка или объект.
+            model_item: Model as a string or object.
 
         Returns:
-            ID модели как строка. Для dict объектов проверяет поля 'id', 'name', 'model'
-            в порядке приоритета. Для других типов возвращает строковое представление.
+            Model ID as string. For dict objects, checks fields 'id', 'name', 'model'
+            in priority order. For other types, returns the string representation.
         """
         if isinstance(model_item, str):
             return model_item
@@ -948,13 +947,13 @@ class PuterClient:
             return str(model_item)
     
     def get_model_list(self, models_data: Optional[Dict[str, Any]] = None) -> List[str]:
-        """Получить список ID моделей (строк) из данных моделей.
-        
+        """Get list of model IDs (strings) from models data.
+
         Args:
-            models_data: Данные моделей. Если None, используется кэш.
-            
+            models_data: Model data. If None, cache is used.
+
         Returns:
-            Список ID моделей как строки.
+            List of model IDs as strings.
         """
         if models_data is None:
             models_data = self._models_cache or {"models": []}
@@ -969,28 +968,28 @@ class PuterClient:
         return model_ids
 
     async def is_model_available(self, model_name: str) -> bool:
-        """Проверить доступность модели в актуальном списке.
+        """Check whether a model is available in the latest list.
 
         Args:
-            model_name: Название модели.
+            model_name: Model name.
 
         Returns:
-            bool: Доступна ли модель.
+            bool: Whether the model is available.
         """
         models_data = await self.get_available_models()
         models = models_data.get("models", [])
         
-        # Проверяем наличие модели в списке
+        # Check presence in list
         for model_item in models:
             if isinstance(model_item, str):
                 if model_item == model_name:
                     return True
             elif isinstance(model_item, dict):
-                # Проверяем различные поля, где может быть ID модели
+                # Check various fields that may contain the model ID
                 model_id = self._extract_model_id(model_item)
                 if model_id == model_name:
                     return True
-                # Также проверяем aliases, если есть
+                # Also check aliases if present
                 aliases = model_item.get("aliases", [])
                 if isinstance(aliases, list) and model_name in aliases:
                     return True
