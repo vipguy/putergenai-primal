@@ -86,7 +86,7 @@ class TestModelsAPI:
         mock_response.json.return_value = "invalid_response"
 
         # Should raise ValueError
-        with pytest.raises(ValueError, match="Неожиданный формат ответа API"):
+        with pytest.raises(ValueError, match="Unexpected API response format"):
             await client.get_available_models()
 
     @pytest.mark.asyncio
@@ -97,7 +97,7 @@ class TestModelsAPI:
         mock_response.json.return_value = {"other_key": "value"}
 
         # Should raise ValueError
-        with pytest.raises(ValueError, match="Ответ API не содержит ключ 'models'"):
+        with pytest.raises(ValueError, match="API response is missing the 'models' key"):
             await client.get_available_models()
 
     @pytest.mark.asyncio
@@ -108,7 +108,7 @@ class TestModelsAPI:
         mock_response.json.return_value = {"models": "not_a_list"}
 
         # Should raise ValueError
-        with pytest.raises(ValueError, match="Поле 'models' должно быть списком"):
+        with pytest.raises(ValueError, match="The 'models' field must be a list"):
             await client.get_available_models()
 
     @pytest.mark.asyncio
