@@ -1,17 +1,48 @@
 version: 2
 updates:
+  # Python dependencies
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Moscow"
     open-pull-requests-limit: 10
     reviewers:
       - "Nerve11"
     assignees:
       - "Nerve11"
+    # Группировка обновлений для минорных и патч-версий
+    groups:
+      production-dependencies:
+        patterns:
+          - "requests*"
+          - "cryptography*"
+          - "Pillow*"
+      development-dependencies:
+        patterns:
+          - "pytest*"
+          - "black*"
+          - "flake8*"
+          - "mypy*"
+    # Автоматическое переоткрытие PR при изменениях
+    rebase-strategy: "auto"
+    # Игнорирование определенных обновлений при необходимости
+    ignore:
+      - dependency-name: "certifi"
+        update-types: ["version-update:semver-patch"]
 
+  # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Moscow"
     open-pull-requests-limit: 5
+    reviewers:
+      - "Nerve11"
+    assignees:
+      - "Nerve11"
