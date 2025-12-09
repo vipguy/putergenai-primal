@@ -22,6 +22,9 @@ except Exception:  # keyring not available
     class KeyringError(Exception):
         pass
 
+# Configure logging
+logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
+
 def generate_local_image(prompt, filename='local_image.png', bg_color='#496d89', font_size=32, text_color='#ffff00'):
     width, height = 600, 300
     img = Image.new('RGB', (width, height), color=bg_color)
@@ -109,25 +112,7 @@ ctk.set_default_color_theme("blue")
 
 class PuterApp(ctk.CTk):
     SECURITY_SERVICE_NAME = "PuterGenAI"
-    def _load_encryption_key(self):
-        self._key_file = "api_keys.key"
-        env_key = os.environ.get("PUTERGENAI_FERNET_KEY")
-        if env_key:
-            self._fernet_key = env_key.encode()
-        elif os.path.exists(self._key_file):
-            with open(self._key_file, "rb") as f:
-                self._fernet_key = f.read()
-        else:
-            self._fernet_key = Fernet.generate_key()
-            with open(self._key_file, "wb") as f:
-                f.write(self._fernet_key)
-            # Restrict permissions to user only (Windows)
-            try:
-                os.chmod(self._key_file, stat.S_IREAD | stat.S_IWRITE)
-            except Exception as e:
-                print(f"Warning: Could not set permissions on {self._key_file}: {e}")
-        self._fernet = Fernet(self._fernet_key)
-
+    
     def _keyring_available(self):
         return keyring is not None
 
@@ -164,73 +149,59 @@ class PuterApp(ctk.CTk):
         except KeyringError:
             return False
 
-    def _encrypt(self, plaintext):
-        return self._fernet.encrypt(plaintext.encode()).decode()
-
-    def _decrypt(self, ciphertext):
-        return self._fernet.decrypt(ciphertext.encode()).decode()
-
     def _load_api_keys(self):
-        """Load API keys from environment, keyring, or legacy encrypted file."""
+        """Load API keys from environment or system keyring only.
+        
+        Security: This method no longer reads from files to prevent
+        sensitive data storage vulnerabilities.
+        """
         api_keys = {}
-        # Prefer environment variables at runtime (not persisted here)
+        
+        # Priority 1: Environment variables (runtime only, not persisted)
         for api_name in ["Hugging Face", "Replicate", "DeepAI", "OpenAI"]:
             env_val = self._get_env_api_key(api_name)
             if env_val:
                 api_keys[api_name] = env_val
-        # Next, try system keyring
+        
+        # Priority 2: System keyring (secure system-managed storage)
         for api_name in ["Hugging Face", "Replicate", "DeepAI", "OpenAI"]:
             if api_name in api_keys:
                 continue
             val = self._keyring_get(api_name)
             if val:
                 api_keys[api_name] = val
-        # Finally, legacy encrypted file fallback
-        if os.path.exists("api_keys.cfg"):
-            try:
-                with open("api_keys.cfg", "r") as f:
-                    for line in f:
-                        if "=" in line:
-                            k, v = line.strip().split("=", 1)
-                            try:
-                                decrypted = self._decrypt(v)
-                                if decrypted and k not in api_keys:
-                                    api_keys[k] = decrypted
-                            except Exception:
-                                continue
-            except Exception as e:
-                print(f"Error loading API keys: {e}")
+        
         return api_keys
 
     def _save_api_keys(self):
-        """Persist API keys to system keyring when available; otherwise, encrypted file."""
+        """Persist API keys to system keyring when available.
+        
+        Security: API keys are ONLY saved to system keyring for secure storage.
+        If keyring is unavailable, keys remain in-memory only and are not
+        persisted to disk, preventing clear-text storage vulnerabilities.
+        """
         try:
-            # Try secure system keyring first
             if self._keyring_available():
+                # Store in secure system keyring
                 for key_name, value in self.api_keys.items():
                     if value and isinstance(value, str) and value.strip():
                         self._keyring_set(key_name, value.strip())
-                return
-            # Fallback: encrypted file storage
-            encrypted_lines = []
-            for key_name, value in self.api_keys.items():
-                if value and isinstance(value, str) and value.strip():
-                    try:
-                        encrypted_value = self._encrypt(value.strip())
-                        line = key_name + "=" + encrypted_value + "\n"
-                        encrypted_lines.append(line)
-                    except Exception as encrypt_error:
-                        print(f"Error encrypting key for service: {encrypt_error}")
-                        continue
-            config_file = "api_keys.cfg"
-            with open(config_file, "w") as f:
-                f.writelines(encrypted_lines)
-            try:
-                os.chmod(config_file, stat.S_IREAD | stat.S_IWRITE)
-            except Exception as perm_error:
-                print(f"Warning: Could not set file permissions: {perm_error}")
+                logging.info("API keys saved to system keyring successfully.")
+            else:
+                # Without keyring, keys are kept in-memory only
+                logging.warning(
+                    "System keyring is not available. API keys will NOT be "
+                    "persisted to disk for security reasons. Please install 'keyring' "
+                    "package or use environment variables for persistent storage."
+                )
+                mbox.showwarning(
+                    "Security Notice",
+                    "System keyring is unavailable. API keys will be stored in memory only "
+                    "for this session. Install 'keyring' package or use environment variables "
+                    "for secure persistent storage."
+                )
         except Exception as e:
-            print(f"Error saving API keys: {e}")
+            logging.error(f"Error saving API keys: {e}")
 
     def _build_main(self):
         self.main_frame = ctk.CTkFrame(self)
@@ -264,7 +235,7 @@ class PuterApp(ctk.CTk):
                         api_key = self._keyring_get(choice)
                     self.api_key_entry.insert(0, str(api_key or ""))
                 except Exception as e:
-                    print("Error setting API key entry field")
+                    logging.error("Error setting API key entry field")
                     # If there's an error, just clear the field
                     try:
                         self.api_key_entry.delete(0, tk.END)
@@ -315,7 +286,6 @@ class PuterApp(ctk.CTk):
         # Status label for showing messages
         self.status_label = ctk.CTkLabel(self.chat_frame, text="", text_color="yellow")
         self.status_label.pack(pady=5)
-    # Sign Out button will be added in _build_main
 
     def _sign_out(self):
         # Clear user session and return to login screen
@@ -326,6 +296,7 @@ class PuterApp(ctk.CTk):
         self.api_online = None
         self.main_frame.pack_forget()
         self._build_login()
+        
     def _get_api_key(self, api_name):
         # 1) Env variable at runtime (do not persist)
         env_key = self._get_env_api_key(api_name)
@@ -434,10 +405,9 @@ class PuterApp(ctk.CTk):
                 resp = requests.post(url, headers=headers, json=data, timeout=(10, 90))  # Robust timeout
                 
                 # Debug: Log response details (without sensitive data)
-                print(f"Model {model_name}: Status {resp.status_code}")
+                logging.debug(f"Model {model_name}: Status {resp.status_code}")
                 if resp.status_code != 200:
-                    # Don't log the actual response as it may contain sensitive error details
-                    print(f"Request failed with status {resp.status_code}")
+                    logging.debug(f"Request failed with status {resp.status_code}")
                 
                 if resp.status_code == 200:
                     # Check if response is actually an image
@@ -462,7 +432,7 @@ class PuterApp(ctk.CTk):
                                 continue
                             elif 'error' in error_data:
                                 last_error = "API returned an error"
-                                print("API Error occurred (details not logged for security)")
+                                logging.warning("API Error occurred (details not logged for security)")
                                 continue
                         except:
                             last_error = "Invalid response format from API"
@@ -569,16 +539,15 @@ class PuterApp(ctk.CTk):
         """Handle image generation errors in main thread"""
         self.status_label.configure(text=error_msg, text_color="red")
         self.chat_box.insert("end", f"[Image API] Error: {error_msg}\n\n")
+        
     def notify_api_signup(self):
         mbox.showinfo(
             "Free API Notice",
             "To use most free image generation APIs (Hugging Face, Replicate, OpenAI, etc.), you will likely need to create a free account and obtain an API key. DeepAI may work without signup for basic use."
         )
+        
     def __init__(self):
         super().__init__()
-        
-        # Initialize encryption first
-        self._load_encryption_key()
         
         self.title("PuterGenAI Chat & Image GUI")
         self.geometry("1000x800")
@@ -598,7 +567,7 @@ class PuterApp(ctk.CTk):
         self.options = {}
         self.api_online = None
         
-        # Load API keys using encryption
+        # Load API keys (ENV + keyring only, no file storage)
         self.api_keys = self._load_api_keys()
         self.api_options = ["None (Disabled)", "Hugging Face", "Replicate", "DeepAI", "OpenAI"]
         self._build_menu_native()
@@ -634,8 +603,6 @@ class PuterApp(ctk.CTk):
         except Exception as e:
             mbox.showwarning("API Status", f"Image API is OFFLINE or unavailable.\nError: {e}")
 
-    # Removed simulated menubar frame
-
     def _show_info(self):
         info = (
             "PuterGenAI GUI\n"
@@ -644,7 +611,9 @@ class PuterApp(ctk.CTk):
             "- Chat, generate images via API or locally.\n"
             "- API image generation may be unavailable for some models/accounts.\n"
             "- Local image generation always works.\n"
-            "- Status and errors are shown below the chat box."
+            "- Status and errors are shown below the chat box.\n\n"
+            "Security: API keys are stored in system keyring or environment variables only. "
+            "No sensitive data is written to files."
         )
         mbox.showinfo("Info", info)
 
@@ -733,7 +702,6 @@ class PuterApp(ctk.CTk):
         self.cancel_button.pack_forget()
         self.login_button.configure(state="normal", text="Login")
         self.login_status.configure(text="Login cancelled.", text_color="orange")
-        # Note: We can't actually stop the thread, but we can ignore its results
 
     def _login_success(self, client):
         """Handle successful login in main thread"""
@@ -743,17 +711,8 @@ class PuterApp(ctk.CTk):
         self.cancel_button.pack_forget()
         self.login_status.configure(text="Login successful!", text_color="green")
         
-        # Skip image access check for now to avoid hanging
-        # User can test image generation manually after login
         note = "Login successful! You can test image generation using the API buttons after login."
         mbox.showinfo("Login Successful", note)
-        self.login_frame.pack_forget()
-        self._build_main()
-
-    def _complete_login(self, has_image_access):
-        """Complete login process with image access info"""
-        note = "You have access to image generation via API." if has_image_access else "You do NOT have access to image generation via API. Use local image generation instead."
-        mbox.showinfo("Image Generation Access", note)
         self.login_frame.pack_forget()
         self._build_main()
 
@@ -764,7 +723,6 @@ class PuterApp(ctk.CTk):
         self.cancel_button.pack_forget()
         self.login_button.configure(state="normal", text="Login")
         self.login_status.configure(text=f"Login failed: {error_msg}", text_color="red")
-
 
     def _send_chat(self):
         prompt = self.prompt_entry.get()
@@ -794,29 +752,6 @@ class PuterApp(ctk.CTk):
             self.status_label.configure(text="Chat response received.", text_color="green")
         except Exception as e:
             self.status_label.configure(text=f"Chat error: {e}", text_color="red")
-
-    def _send_image(self):
-        prompt = self.prompt_entry.get()
-        if not prompt:
-            self.status_label.configure(text="Prompt cannot be empty.")
-            return
-        try:
-            image_url = self.client.ai_txt2img(prompt)
-            if image_url:
-                self.api_online = True
-                self.chat_box.insert("end", f"[Image API] Prompt: {prompt}\nImage URL: {image_url}\n\n")
-                self.status_label.configure(text="Image generated via API.", text_color="green")
-                mbox.showinfo("API Status", "Image API is ONLINE.")
-            else:
-                self.api_online = False
-                self.chat_box.insert("end", f"[Image API] Prompt: {prompt}\nImage generation failed.\n\n")
-                self.status_label.configure(text="Image generation failed.", text_color="red")
-                mbox.showwarning("API Status", "Image API is OFFLINE or unavailable.")
-        except Exception as e:
-            self.api_online = False
-            self.chat_box.insert("end", f"[Image API] Error: {e}\n\n")
-            self.status_label.configure(text=f"Image API error: {e}", text_color="red")
-            mbox.showwarning("API Status", f"Image API is OFFLINE or unavailable.\nError: {e}")
 
     def _send_image_local(self):
         self.notify_api_signup()
@@ -883,54 +818,44 @@ class PuterApp(ctk.CTk):
         gen_btn = tk.Button(options_win, text="Generate", command=generate_and_close)
         gen_btn.pack(pady=10)
 
-# --- Flask Secure Cookie Example ---
+
+# --- Flask Secure Cookie Example (Demo Only) ---
+# This example demonstrates secure session handling but is NOT used by the GUI
 from flask import Flask, make_response, request
-from cryptography.fernet import Fernet
 import secrets
 
 app = Flask("Secure Example")
-# Use a secure key from environment or generate securely
 app.secret_key = os.environ.get("PUTERGENAI_FLASK_SECRET_KEY", secrets.token_hex(32))
 app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Strict',
 )
-fernet = Fernet(Fernet.generate_key())
 
 @app.route('/')
 def index():
     password = request.args.get("password")
     if password:
-        # Don't store passwords in cookies at all - this is just for demonstration
-        # In production, use session tokens or other secure methods
+        # Demo: Never store passwords in cookies - use session tokens only
         session_token = secrets.token_urlsafe(32)
-        
-        # Store the password securely server-side (not shown here)
-        # encrypted_password = fernet.encrypt(password.encode()).decode()
-        
         resp = make_response("Authentication token created (password not stored in cookie)")
-        # Store only a session token, not the actual password
         resp.set_cookie("session_token", session_token, 
                        secure=True, 
                        httponly=True, 
                        samesite='Strict',
-                       max_age=3600)  # 1 hour expiration
+                       max_age=3600)
         return resp
     return "No password provided"
 
 @app.after_request
 def set_secure_headers(resp):
-    # Basic security headers for example purposes
+    # Security headers for production use
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["Referrer-Policy"] = "no-referrer"
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return resp
 
-# Uncomment below to run Flask app
-# if __name__ == "__main__":
-#     app.run(debug=True)
 
 if __name__ == "__main__":
     app_instance = PuterApp()
