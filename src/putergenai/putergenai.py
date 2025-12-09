@@ -775,11 +775,11 @@ class PuterClient:
 
                 # Ensure the 'models' key exists
                 if 'models' not in data:
-                    raise ValueError(f"API response missing 'models' key: {list(data.keys())}")
-                
+                    raise ValueError(f"API response is missing the 'models' key")
+
                 models = data['models']
                 if not isinstance(models, list):
-                    raise ValueError(f"Field 'models' must be a list, got {type(models)}")
+                    raise ValueError(f"The 'models' field must be a list, got {type(models)}")
                 
                 # Normalize models: keep strings as-is, preserve objects
                 normalized_models = []
