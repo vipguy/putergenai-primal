@@ -1,39 +1,30 @@
-# PutergenAI: Python SDK for Puter.js
+# PutergenAI
 
 [![Python Version](https://img.shields.io/badge/python-3.11--3.14-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![PyPI Version](https://img.shields.io/badge/pypi-2.1.0-blue)](https://pypi.org/project/putergenai/)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](https://img.shields.io/badge/tests-passing-brightgreen)
 
-Asynchronous Python client for interacting with the Puter.com API. This SDK provides access to Puter's AI models (including OpenAI GPT, Claude, Mistral, Grok, DeepSeek, and more), file system operations, image generation, OCR, and text-to-speech capabilities.
+Asynchronous Python SDK for [Puter.com](https://puter.com) API — an open-source cloud platform with AI capabilities, file storage, and privacy-first design.
 
 ## Features
 
-- **AI Chat Completions**: Support for 200+ AI models from various providers (OpenAI, Anthropic, Mistral, xAI, DeepSeek, Google, TogetherAI, OpenRouter, and more)
-- **File System Operations**: Read, write, and delete files on Puter.com
-- **Image Generation**: Create images from text prompts using various models
+- **200+ AI Models**: GPT, Claude, Gemini, Mistral, Grok, DeepSeek, and more
+- **File System**: Cloud storage operations (read/write/delete)
+- **Image Generation**: Text-to-image with multiple providers
 - **OCR**: Extract text from images
 - **Text-to-Speech**: Convert text to MP3 audio
-- **Streaming Support**: Real-time streaming responses for chat completions
-- **Fallback & Retry Logic**: Automatic model fallback and retry mechanisms for reliability
+- **Streaming Support**: Real-time chat completions
+- **Async/Await**: Modern Python async architecture
 
-## Installation
+## Quick Start
 
-Install PutergenAI using pip:
+Install the package:
 
 ```bash
 pip install putergenai
 ```
 
-Or from source:
-
-```bash
-git clone https://github.com/Nerve11/putergenai.git
-cd putergenai
-pip install .
-```
-
-## Quick Start
+Basic usage:
 
 ```python
 import asyncio
@@ -41,139 +32,73 @@ from putergenai import PuterClient
 
 async def main():
     async with PuterClient() as client:
-        # Login to Puter.com
         await client.login("your_username", "your_password")
-
-        # AI Chat with GPT-4o
+        
         result = await client.ai_chat(
             prompt="Hello, how are you?",
-            options={"model": "gpt-4o", "stream": False}
+            options={"model": "gpt-4o"}
         )
-
+        
         print(result["response"]["result"]["message"]["content"])
 
 asyncio.run(main())
 ```
 
-## Authentication
+## Documentation
 
-Authentication is required for most operations. Use your Puter.com username and password:
+- **[Installation Guide](docs/installation.md)** — Setup instructions and dependencies
+- **[API Reference](docs/api.md)** — Complete method documentation
 
-```python
-await client.login("your_username", "your_password")
-```
-
-### Environment Variables (Recommended)
-
-For testing and development, you can use environment variables. Create a `.env` file in your project root:
-
-```bash
-# Copy the example file
-cp .env.example .env
-
-# Edit .env with your credentials
-PUTER_USERNAME=your_username
-PUTER_PASSWORD=your_password
-```
-
-Then use the credentials in your code:
-
-```python
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-username = os.getenv('PUTER_USERNAME')
-password = os.getenv('PUTER_PASSWORD')
-
-await client.login(username, password)
-```
-
-## AI Chat Completions
-
-### Synchronous Chat
-
-```python
-messages = [
-    {"role": "user", "content": "What is the capital of France?"}
-]
-
-result = await client.ai_chat(messages=messages, options={"model": "gpt-4o"})
-print(result["response"]["result"]["message"]["content"])
-```
+## Examples
 
 ### Streaming Chat
 
 ```python
-async def stream_chat():
-    messages = [{"role": "user", "content": "Tell me a story"}]
+async def stream_example():
+    async with PuterClient() as client:
+        await client.login("username", "password")
+        
+        stream = await client.ai_chat(
+            prompt="Tell me a story",
+            options={"model": "claude-opus-4.5", "stream": True}
+        )
+        
+        async for chunk, model in stream:
+            print(chunk, end='', flush=True)
 
-    gen = await client.ai_chat(
-        messages=messages,
-        options={"model": "claude-opus-4.5", "stream": True}
-    )
-
-    print("Assistant: ", end='', flush=True)
-    async for content, model in gen:
-        print(content, end='', flush=True)
-    print()
-
-asyncio.run(stream_chat())
+asyncio.run(stream_example())
 ```
 
-### Vision/Chat with Images
+### File Operations
 
 ```python
-messages = [
-    {
-        "role": "user",
-        "content": [
-            {"type": "text", "text": "What's in this image?"},
-            {"type": "image_url", "image_url": {"url": "https://example.com/image.jpg"}}
-        ]
-    }
-]
+async def file_example():
+    async with PuterClient() as client:
+        await client.login("username", "password")
+        
+        await client.fs_write("test.txt", "Hello, Puter!")
+        content = await client.fs_read("test.txt")
+        print(content.decode('utf-8'))
+        await client.fs_delete("test.txt")
+
+asyncio.run(file_example())
+```
+
+### Vision (Image Analysis)
+
+```python
+messages = [{
+    "role": "user",
+    "content": [
+        {"type": "text", "text": "What's in this image?"},
+        {"type": "image_url", "image_url": {"url": "https://example.com/image.jpg"}}
+    ]
+}]
 
 result = await client.ai_chat(messages=messages, options={"model": "gpt-4o"})
 ```
 
-## Supported Models
-
-The SDK supports models from:
-
-- **OpenAI**: GPT-5, GPT-4o, o3 series
-- **Anthropic**: Claude Opus, Sonnet, Haiku series
-- **Mistral**: Large, Medium, Small models
-- **xAI**: Grok series
-- **DeepSeek**: Chat and Reasoner models
-- **Google**: Gemini series
-- **TogetherAI**: Various models including LLMs and image generation
-- **OpenRouter**: Access to 100+ models from different providers
-
-For the complete list of supported models, refer to the `model_to_driver` mapping in the source code.
-
-## File System Operations
-
-### Write a File
-
-```python
-await client.fs_write("hello.txt", "Hello, Puter!")
-```
-
-### Read a File
-
-```python
-content = await client.fs_read("hello.txt")
-print(content.decode('utf-8'))
-```
-
-### Delete a File
-
-```python
-await client.fs_delete("hello.txt")
-```
-
-## Image Generation
+### Image Generation
 
 ```python
 image_url = await client.ai_txt2img(
@@ -183,18 +108,14 @@ image_url = await client.ai_txt2img(
 print(image_url)
 ```
 
-## OCR (Image to Text)
+### OCR (Image to Text)
 
 ```python
 text = await client.ai_img2txt("https://example.com/image.png")
 print(text)
-
-# Or with file upload
-with open("image.png", "rb") as f:
-    text = await client.ai_img2txt(f)
 ```
 
-## Text-to-Speech
+### Text-to-Speech
 
 ```python
 audio_bytes = await client.ai_txt2speech("Hello, world!")
@@ -202,102 +123,74 @@ with open("output.mp3", "wb") as f:
     f.write(audio_bytes)
 ```
 
-## Advanced Options
+## GUI Application
 
-### Custom Parameters
-
-```python
-options = {
-    "model": "gpt-5",
-    "temperature": 1,
-    "max_tokens": 2000,
-    "stream": True
-}
-
-gen = await client.ai_chat(
-    messages=messages,
-    options=options,
-    test_mode=False,  # Use test mode for debugging
-    strict_model=True  # Enforce exact model usage
-)
-```
-
-### Tools and Function Calling
-
-```python
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "get_weather",
-            "description": "Get weather information",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "location": {"type": "string"}
-                }
-            }
-        }
-    }
-]
-
-messages = [{"role": "user", "content": "What's the weather in Paris?"}]
-
-result = await client.ai_chat(
-    messages=messages,
-    options={"model": "gpt-4o", "tools": tools}
-)
-
-# Check for tool calls in result
-if "tool_calls" in result["response"]["result"]["message"]:
-    # Handle tool calls...
-    pass
-```
-
-## Error Handling
-
-The SDK includes built-in error handling and retry logic:
-
-- Automatic retries for transient failures
-- Model fallback when preferred models are unavailable
-- SSL verification options for debugging network issues
-
-```python
-try:
-    result = await client.ai_chat(messages=messages)
-except ValueError as e:
-    print(f"Error: {e}")
-```
-
-## Examples
-
-See the `examples/` directory for comprehensive usage examples:
-
-- `examples/example.py`: Interactive chat terminal application
-- `examples/example-ui.py`: GUI chat application with CustomTkinter
-
-Run an example:
+Try the interactive GUI built with CustomTkinter:
 
 ```bash
-python examples/example.py
+python examples/example-ui.py
 ```
+
+Features:
+- Secure login with encrypted credentials
+- Multi-model chat interface
+- Image generation with 4 free APIs
+- Async operations (non-blocking UI)
+- API key management via system keychain
+
+## Supported Models
+
+The SDK supports models from multiple providers:
+
+| Provider | Examples |
+|----------|----------|
+| **OpenAI** | GPT-5, GPT-4o, o3 series |
+| **Anthropic** | Claude Opus, Sonnet, Haiku |
+| **Google** | Gemini Pro, Flash |
+| **Mistral** | Large, Medium, Small |
+| **xAI** | Grok series |
+| **DeepSeek** | Chat, Reasoner |
+| **TogetherAI** | Various LLMs |
+| **OpenRouter** | 100+ models |
+
+For the complete list, see the [API Reference](docs/api.md#supported-models).
+
+## Security
+
+- **Encrypted Storage**: API keys stored via system keychain or Fernet encryption
+- **No Plain-Text Credentials**: Session tokens instead of passwords
+- **SSL/TLS**: All connections secured by default
+- **Input Validation**: Sanitized user inputs
+
+See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
 ## Contributing
 
-Contributions are welcome!
+Contributions welcome! Please:
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
+2. Create a feature branch (`git checkout -b feature/xyz`)
+3. Commit your changes
 4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
+5. Submit a pull request
 
+Run tests:
+
+```bash
+python -m unittest discover tests
+```
 
 ## License
 
-PutergenAI is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](LICENSE) for details.
+
+## Links
+
+- **PyPI**: [pypi.org/project/putergenai](https://pypi.org/project/putergenai/)
+- **GitHub**: [github.com/Nerve11/putergenai](https://github.com/Nerve11/putergenai)
+- **Puter Platform**: [puter.com](https://puter.com)
 
 ---
 
-Built with ❤️ for the Puter.com platform
+**Maintainers**: [Nerve11](https://github.com/Nerve11) • [KernFerm](https://github.com/KernFerm)  
+**Version**: 2.1.0 • Built with ❤️ for the Puter.com platform
