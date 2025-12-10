@@ -1,48 +1,46 @@
+# Dependabot configuration for automatic dependency updates
 version: 2
 updates:
-  # Python dependencies
+  # Update Python dependencies
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "09:00"
-      timezone: "Europe/Moscow"
+    # Create separate PRs for each dependency
     open-pull-requests-limit: 10
-    reviewers:
-      - "Nerve11"
+    # Assignees and reviewers
     assignees:
       - "Nerve11"
-    # Группировка обновлений для минорных и патч-версий
+    reviewers:
+      - "Nerve11"
+    # Commit message prefix
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+    # Labels for PRs
+    labels:
+      - "dependencies"
+      - "python"
+    # Group patch and minor updates
     groups:
-      production-dependencies:
-        patterns:
-          - "requests*"
-          - "cryptography*"
-          - "Pillow*"
-      development-dependencies:
-        patterns:
-          - "pytest*"
-          - "black*"
-          - "flake8*"
-          - "mypy*"
-    # Автоматическое переоткрытие PR при изменениях
-    rebase-strategy: "auto"
-    # Игнорирование определенных обновлений при необходимости
-    ignore:
-      - dependency-name: "certifi"
-        update-types: ["version-update:semver-patch"]
+      patch-and-minor:
+        update-types:
+          - "patch"
+          - "minor"
 
-  # GitHub Actions
+  # Update GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "09:00"
-      timezone: "Europe/Moscow"
-    open-pull-requests-limit: 5
-    reviewers:
-      - "Nerve11"
     assignees:
       - "Nerve11"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+      - "github-actions"

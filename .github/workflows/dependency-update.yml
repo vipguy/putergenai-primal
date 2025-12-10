@@ -1,0 +1,130 @@
+name: Dependency Update
+
+# Runs every Monday at 9:00 AM UTC
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-dependencies:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install pur (Package Update Report)
+        run: |
+          pip install --upgrade pip
+          pip install pur pip-tools
+
+      - name: Update requirements.txt
+        run: |
+          # Backup original files
+          cp requirements.txt requirements.txt.bak
+          cp pyproject.toml pyproject.toml.bak
+          
+          # Update requirements.txt using pur
+          pur -r requirements.txt
+          
+          # Extract updated versions and update pyproject.toml
+          python << 'EOF'
+import re
+
+# Read updated requirements.txt
+with open('requirements.txt', 'r') as f:
+    requirements = f.readlines()
+
+# Read pyproject.toml
+with open('pyproject.toml', 'r') as f:
+    pyproject = f.read()
+
+# Update each dependency version in pyproject.toml
+for req in requirements:
+    req = req.strip()
+    if not req or req.startswith('#'):
+        continue
+    
+    # Parse package name and version
+    match = re.match(r'([a-zA-Z0-9_-]+)>=([0-9.]+)', req)
+    if match:
+        package, version = match.groups()
+        # Update in pyproject.toml
+        pattern = f'"{package}>=.*?"'
+        replacement = f'"{package}>={version}"'
+        pyproject = re.sub(pattern, replacement, pyproject, flags=re.IGNORECASE)
+
+# Write updated pyproject.toml
+with open('pyproject.toml', 'w') as f:
+    f.write(pyproject)
+EOF
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet requirements.txt pyproject.toml; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No dependency updates available"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Dependencies have been updated"
+          fi
+
+      - name: Create Pull Request
+        if: steps.check_changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'deps: update Python dependencies to latest versions'
+          branch: deps/auto-update-dependencies
+          delete-branch: true
+          title: '⬆️ Update Python dependencies'
+          body: |
+            ## 📦 Automatic Dependency Update
+            
+            This PR updates Python dependencies to their latest compatible versions.
+            
+            ### Changed Files
+            - `requirements.txt`
+            - `pyproject.toml`
+            
+            ### 🔍 Review Checklist
+            - [ ] Check for breaking changes in updated packages
+            - [ ] Verify all tests pass
+            - [ ] Review security updates
+            
+            ---
+            
+            🤖 This PR was automatically created by the dependency update workflow.
+            
+            <details>
+            <summary>📋 Updated dependencies</summary>
+            
+            ```diff
+            $(git diff requirements.txt)
+            ```
+            </details>
+          labels: |
+            dependencies
+            python
+            automated
+          assignees: Nerve11
+          reviewers: Nerve11
+
+      - name: Restore backup if PR creation failed
+        if: failure()
+        run: |
+          mv requirements.txt.bak requirements.txt || true
+          mv pyproject.toml.bak pyproject.toml || true
