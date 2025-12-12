@@ -31,6 +31,8 @@ jobs:
     name: 🔍 Lint & Format Check
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     
     steps:
       - name: 📥 Checkout code
@@ -88,6 +90,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     needs: lint
+    permissions:
+      contents: read
+      checks: write
     
     strategy:
       fail-fast: false
@@ -179,6 +184,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: test
+    permissions:
+      contents: read
 
     steps:
       - name: 📥 Checkout code
@@ -226,6 +233,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint, test, build]
     if: always()
+    permissions:
+      contents: read
 
     steps:
       - name: ✅ Check all jobs
