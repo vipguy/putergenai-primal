@@ -1,42 +1,44 @@
 import asyncio
 import json
 import logging
-import ssl
 import socket
+import ssl
+from datetime import datetime, timedelta
 from typing import (
     Any,
+    AsyncGenerator,
     Dict,
     List,
     Optional,
     Tuple,
     Union,
-    AsyncGenerator,
 )
 
 import aiohttp
 import certifi
-from pydantic import BaseModel, Field, ConfigDict, HttpUrl
-
-from datetime import datetime, timedelta
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-__version__ = '2.1.0'
+__version__ = "2.1.0"
 
 
 class NonEmptyStr(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
     value: str = Field(..., min_length=1)
 
+
 class PathStr(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
-    value: str = Field(..., min_length=1, pattern=r'^[\w\-\.\/]+$')
+    value: str = Field(..., min_length=1, pattern=r"^[\w\-\.\/]+$")
+
 
 def validate_string(s: str) -> str:
     """Validate non-empty string (strip whitespace)."""
     return NonEmptyStr.model_validate({"value": s}).value
+
 
 def validate_path(p: str) -> str:
     """Validate path string (non-empty, alphanumeric/.-/)."""
@@ -45,6 +47,7 @@ def validate_path(p: str) -> str:
 
 class UrlStr(BaseModel):
     value: HttpUrl
+
 
 def validate_url(u: str) -> str:
     """Validate HTTP/HTTPS URL."""
@@ -56,7 +59,12 @@ class PuterClient:
     Asynchronous Client for the Puter.com API.
     """
 
-    def __init__(self, token: Optional[str] = None, ignore_ssl: bool = False, auto_update_models: bool = False):
+    def __init__(
+        self,
+        token: Optional[str] = None,
+        ignore_ssl: bool = False,
+        auto_update_models: bool = False,
+    ):
         self.token = token
         self.ignore_ssl = ignore_ssl
         self.auto_update_models = auto_update_models
@@ -74,7 +82,7 @@ class PuterClient:
                 "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             ),
         }
-        
+
         # Model to driver mapping
         self.model_to_driver = {
             # OpenAI GPT-5.1 models
@@ -693,25 +701,21 @@ class PuterClient:
         if self._session is None or self._session.closed:
             # Configure SSL context with certifi
             if self.ignore_ssl:
-                 ssl_context = False
+                ssl_context = False
             else:
                 ssl_context = ssl.create_default_context(cafile=certifi.where())
-            
+
             # Force IPv4 to avoid Windows semaphore timeout issues with IPv6
-            connector = aiohttp.TCPConnector(
-                ssl=ssl_context,
-                family=socket.AF_INET,
-                limit=100
-            )
-            
+            connector = aiohttp.TCPConnector(ssl=ssl_context, family=socket.AF_INET, limit=100)
+
             # Explicit timeout
             timeout = aiohttp.ClientTimeout(total=60)
-            
+
             self._session = aiohttp.ClientSession(
                 headers=self.headers,
                 connector=connector,
                 timeout=timeout,
-                trust_env=True  # Respect system proxies
+                trust_env=True,  # Respect system proxies
             )
         return self._session
 
@@ -756,7 +760,7 @@ class PuterClient:
             and self._cache_timestamp is not None
             and datetime.now() - self._cache_timestamp < self._cache_ttl
         ):
-            models_count = len(self._models_cache.get('models', []))
+            models_count = len(self._models_cache.get("models", []))
             logger.info(f"Returning {models_count} models from cache")
             return self._models_cache
 
@@ -765,22 +769,24 @@ class PuterClient:
             async with session.get(url, headers=self._get_auth_headers()) as response:
                 response.raise_for_status()
                 data: Dict[str, Any] = await response.json()
-                
+
                 # Normalize response shape
                 if isinstance(data, list):
                     # Response is just a list of models
-                    data = {'models': data}
+                    data = {"models": data}
                 elif not isinstance(data, dict):
-                    raise ValueError(f"Unexpected API response format: expected dict or list, got {type(data)}")
+                    raise ValueError(
+                        f"Unexpected API response format: expected dict or list, got {type(data)}"
+                    )
 
                 # Ensure the 'models' key exists
-                if 'models' not in data:
-                    raise ValueError(f"API response is missing the 'models' key")
+                if "models" not in data:
+                    raise ValueError("API response is missing the 'models' key")
 
-                models = data['models']
+                models = data["models"]
                 if not isinstance(models, list):
                     raise ValueError(f"The 'models' field must be a list, got {type(models)}")
-                
+
                 # Normalize models: keep strings as-is, preserve objects
                 normalized_models = []
                 for model in models:
@@ -793,13 +799,13 @@ class PuterClient:
                         logger.warning(f"Unexpected model type: {type(model)}, value: {model}")
                         # Try to coerce to string
                         normalized_models.append(str(model))
-                
-                result = {'models': normalized_models}
+
+                result = {"models": normalized_models}
                 self._models_cache = result
                 self._cache_timestamp = datetime.now()
                 logger.info(f"Fetched {len(normalized_models)} models from API")
                 return result
-                
+
         except aiohttp.ClientError as e:
             logger.error(f"Error fetching models: {e}")
             if self._models_cache is not None:
@@ -823,12 +829,12 @@ class PuterClient:
         """
         models_data = await self.get_available_models()
         new_mappings: Dict[str, str] = {}
-        
+
         for model_item in models_data["models"]:
             model_id: str = ""
             driver: Optional[str] = None
             provider: Optional[str] = None
-            
+
             # Handle model object
             if isinstance(model_item, dict):
                 # Extract model ID with safe conversion to string
@@ -846,11 +852,11 @@ class PuterClient:
                         else:
                             logger.warning(f"Model object without ID: {model_item}")
                             continue
-                
+
                 # Attempt to get driver and provider from the object
                 driver = model_item.get("driver")
                 provider = model_item.get("provider")
-                
+
                 # If driver is missing but provider is present, derive from provider
                 if driver is None and provider is not None and isinstance(provider, str):
                     provider_lower = provider.lower()
@@ -870,18 +876,18 @@ class PuterClient:
                         driver = "together-ai"
                     elif provider_lower == "openrouter":
                         driver = "openrouter"
-            
+
             # Handle model string
             elif isinstance(model_item, str):
                 model_id = model_item
             else:
                 logger.warning(f"Unexpected model item type: {type(model_item)}")
                 continue
-            
+
             # If driver is still unknown, apply heuristic
             if not driver:
                 model_lower = model_id.lower()
-                
+
                 # Detect driver by prefix or content
                 if model_id.startswith("openrouter:"):
                     driver = "openrouter"
@@ -889,7 +895,11 @@ class PuterClient:
                     driver = "together-ai"
                 elif "claude" in model_lower:
                     driver = "claude"
-                elif "mistral" in model_lower or "ministral" in model_lower or "pixtral" in model_lower:
+                elif (
+                    "mistral" in model_lower
+                    or "ministral" in model_lower
+                    or "pixtral" in model_lower
+                ):
                     driver = "mistral"
                 elif "grok" in model_lower:
                     driver = "xai"
@@ -905,16 +915,16 @@ class PuterClient:
                 else:
                     # Default to openai-completion
                     driver = "openai-completion"
-            
+
             new_mappings[model_id] = driver
-        
+
         # Update mapping
         updated_count = 0
         for model_id, driver in new_mappings.items():
             if model_id not in self.model_to_driver or self.model_to_driver[model_id] != driver:
                 self.model_to_driver[model_id] = driver
                 updated_count += 1
-        
+
         logger.info(f"Mappings updated: {updated_count} new/changed of {len(new_mappings)} models")
 
     def _extract_model_id(self, model_item: Union[str, Dict[str, Any]]) -> str:
@@ -945,7 +955,7 @@ class PuterClient:
         else:
             # For any other type, convert to string
             return str(model_item)
-    
+
     def get_model_list(self, models_data: Optional[Dict[str, Any]] = None) -> List[str]:
         """Get list of model IDs (strings) from models data.
 
@@ -957,14 +967,14 @@ class PuterClient:
         """
         if models_data is None:
             models_data = self._models_cache or {"models": []}
-        
+
         models = models_data.get("models", [])
         model_ids = []
-        
+
         for model_item in models:
             model_id = self._extract_model_id(model_item)
             model_ids.append(model_id)
-        
+
         return model_ids
 
     async def is_model_available(self, model_name: str) -> bool:
@@ -978,7 +988,7 @@ class PuterClient:
         """
         models_data = await self.get_available_models()
         models = models_data.get("models", [])
-        
+
         # Check presence in list
         for model_item in models:
             if isinstance(model_item, str):
@@ -993,7 +1003,7 @@ class PuterClient:
                 aliases = model_item.get("aliases", [])
                 if isinstance(aliases, list) and model_name in aliases:
                     return True
-        
+
         return False
 
     async def login(self, username: str, password: str) -> str:
@@ -1004,7 +1014,7 @@ class PuterClient:
         password = validate_string(password)
         payload = {"username": username, "password": password}
         session = await self._get_session()
-        
+
         try:
             async with session.post(self.login_url, json=payload) as response:
                 response.raise_for_status()
@@ -1029,22 +1039,20 @@ class PuterClient:
             "Content-Type": "application/json",
         }
 
-    async def fs_write(
-        self, path: str, content: Union[str, bytes, Any]
-    ) -> Dict[str, Any]:
+    async def fs_write(self, path: str, content: Union[str, bytes, Any]) -> Dict[str, Any]:
         """
         Write content to a file in Puter FS asynchronously.
         """
         path = validate_path(path)
         headers = self._get_auth_headers()
-        headers.pop("Content-Type") 
-        
+        headers.pop("Content-Type")
+
         if isinstance(content, str):
             content = content.encode("utf-8")
-        
+
         if not isinstance(content, bytes) and not hasattr(content, "read"):
-             logger.warning("Invalid content type for fs_write")
-             raise ValueError("Content must be str, bytes, or file-like object.")
+            logger.warning("Invalid content type for fs_write")
+            raise ValueError("Content must be str, bytes, or file-like object.")
 
         session = await self._get_session()
         try:
@@ -1120,7 +1128,7 @@ class PuterClient:
         model = options.get("model", self.fallback_models[0])
         driver = self.model_to_driver.get(model, "openai-completion")
         stream = options.get("stream", False)
-        
+
         temperature = options.get("temperature", 0.7)
         if model in self.force_temperature_1_models:
             if temperature != 1:
@@ -1136,15 +1144,11 @@ class PuterClient:
                     if not isinstance(image_url, list):
                         image_url = [image_url]
                     content_parts = (
-                        [{"type": "text", "text": content}]
-                        if isinstance(content, str)
-                        else content
+                        [{"type": "text", "text": content}] if isinstance(content, str) else content
                     )
                     for url in image_url:
                         safe_url = validate_url(url)
-                        content_parts.append(
-                            {"type": "image_url", "image_url": {"url": safe_url}}
-                        )
+                        content_parts.append({"type": "image_url", "image_url": {"url": safe_url}})
                     content = content_parts
                 messages.append({"role": "user", "content": content})
 
@@ -1175,7 +1179,7 @@ class PuterClient:
                 used_model = data["result"]["usage"][0].get("model", "unknown")
             elif "metadata" in data and "service_used" in data["metadata"]:
                 used_model = data["metadata"].get("service_used", "unknown")
-            
+
             if used_model and used_model != requested_model:
                 msg = f"Requested model {requested_model}, but server used {used_model}"
                 if strict:
@@ -1184,7 +1188,9 @@ class PuterClient:
                     logger.warning(msg)
             return used_model or requested_model
 
-        def process_line(line: bytes, requested_model: str, strict: bool) -> Optional[Tuple[str, str]]:
+        def process_line(
+            line: bytes, requested_model: str, strict: bool
+        ) -> Optional[Tuple[str, str]]:
             if not line:
                 return None
             logger.debug(f"Raw stream line: {line}")
@@ -1194,15 +1200,15 @@ class PuterClient:
                     error_data = data.get("error", {})
                     error_msg = error_data.get("message", "Unknown error")
                     raise ValueError(f"API error: {error_msg} (code: {error_data.get('code')})")
-                
+
                 used_model = check_used_model(data, requested_model, strict)
-                
+
                 # Custom text format
                 if "type" in data and data["type"] == "text" and "text" in data:
                     content = data["text"]
                     if content:
                         return content, used_model
-                        
+
                 # Claude-style
                 if "result" in data and "message" in data["result"]:
                     msg_content = data["result"]["message"].get("content", "")
@@ -1212,13 +1218,13 @@ class PuterClient:
                         content = msg_content[0].get("text", "")
                         if content:
                             return content, used_model
-                            
+
                 # OpenAI-style
                 if "choices" in data:
                     content = data.get("choices", [{}])[0].get("delta", {}).get("content", "")
                     if content:
                         return content, used_model
-                        
+
             except json.JSONDecodeError:
                 if line.startswith(b"data: "):
                     try:
@@ -1239,37 +1245,45 @@ class PuterClient:
 
         try:
             logger.info(f"Sending ai_chat request: model={model}, stream={stream}")
-            
+
             async def handle_error(error_msg, error_code=None):
                 is_forbidden = error_code in ("no_implementation_available", "forbidden")
                 if is_forbidden and retry_count < self.max_retries:
                     if strict_model:
                         raise ValueError(f"Model {model} unavailable (strict mode).")
-                    
+
                     if not test_mode:
                         logger.warning(f"Retrying {model} with test_mode=True")
                         return await self.ai_chat(
-                            prompt=prompt, options=options, test_mode=True,
-                            image_url=image_url, messages=messages,
-                            retry_count=retry_count + 1, strict_model=strict_model
+                            prompt=prompt,
+                            options=options,
+                            test_mode=True,
+                            image_url=image_url,
+                            messages=messages,
+                            retry_count=retry_count + 1,
+                            strict_model=strict_model,
                         )
-                    
+
                     # Fallback
                     if model in self.fallback_models:
                         idx = self.fallback_models.index(model)
                         next_idx = idx + 1
                     else:
                         next_idx = 0
-                        
+
                     if next_idx < len(self.fallback_models):
                         next_model = self.fallback_models[next_idx]
                         logger.warning(f"Fallback from {model} to {next_model}")
                         options["model"] = next_model
                         await asyncio.sleep(1)
                         return await self.ai_chat(
-                            prompt=prompt, options=options, test_mode=test_mode,
-                            image_url=image_url, messages=messages,
-                            retry_count=retry_count + 1, strict_model=strict_model
+                            prompt=prompt,
+                            options=options,
+                            test_mode=test_mode,
+                            image_url=image_url,
+                            messages=messages,
+                            retry_count=retry_count + 1,
+                            strict_model=strict_model,
                         )
                 raise ValueError(f"AI chat error: {error_msg}")
 
@@ -1298,7 +1312,7 @@ class PuterClient:
                         raise e
 
                 return async_generator()
-            
+
             else:
                 async with session.post(
                     f"{self.api_base}/drivers/call",
@@ -1307,11 +1321,11 @@ class PuterClient:
                 ) as response:
                     response.raise_for_status()
                     result = await response.json()
-                    
+
                     if not result.get("success", True):
                         err = result.get("error", {})
                         await handle_error(err.get("message"), err.get("code"))
-                    
+
                     used_model = check_used_model(result, model, strict_model)
                     return {"response": result, "used_model": used_model}
 
@@ -1325,7 +1339,7 @@ class PuterClient:
         """
         headers = self._get_auth_headers()
         session = await self._get_session()
-        
+
         try:
             if isinstance(image, str):
                 safe_url = validate_url(image)
@@ -1340,10 +1354,10 @@ class PuterClient:
                     return data.get("text")
             else:
                 data = aiohttp.FormData()
-                data.add_field('testMode', str(test_mode).lower())
-                data.add_field('image', image)
+                data.add_field("testMode", str(test_mode).lower())
+                data.add_field("image", image)
                 headers.pop("Content-Type", None)
-                
+
                 async with session.post(
                     f"{self.api_base}/ai/img2txt",
                     data=data,
@@ -1356,7 +1370,9 @@ class PuterClient:
             logger.warning(f"ai_img2txt error: {e}")
             raise
 
-    async def ai_txt2img(self, prompt: str, model: str = "pollinations-image", test_mode: bool = False) -> str:
+    async def ai_txt2img(
+        self, prompt: str, model: str = "pollinations-image", test_mode: bool = False
+    ) -> str:
         """
         Text to image using Puter's driver API asynchronously.
         """
@@ -1364,23 +1380,18 @@ class PuterClient:
             "interface": "puter-image-generation",
             "driver": model,
             "method": "generate",
-            "args": {
-                "prompt": prompt,
-                "testMode": test_mode
-            }
+            "args": {"prompt": prompt, "testMode": test_mode},
         }
         headers = self._get_auth_headers()
         session = await self._get_session()
-        
+
         try:
             async with session.post(
-                f"{self.api_base}/drivers/call",
-                json=payload,
-                headers=headers
+                f"{self.api_base}/drivers/call", json=payload, headers=headers
             ) as response:
                 response.raise_for_status()
                 data = await response.json()
-                
+
                 if "result" in data and "image_url" in data["result"]:
                     return data["result"]["image_url"]
                 elif "result" in data and isinstance(data["result"], dict):
@@ -1391,9 +1402,7 @@ class PuterClient:
             logger.warning(f"ai_txt2img error: {e}")
             raise
 
-    async def ai_txt2speech(
-        self, text: str, options: Optional[Dict[str, Any]] = None
-    ) -> bytes:
+    async def ai_txt2speech(self, text: str, options: Optional[Dict[str, Any]] = None) -> bytes:
         """
         Text to speech asynchronously. Returns MP3 bytes.
         """
@@ -1402,7 +1411,7 @@ class PuterClient:
         payload = {"text": text, "testMode": options.get("testMode", False)}
         headers = self._get_auth_headers()
         session = await self._get_session()
-        
+
         try:
             async with session.post(
                 f"{self.api_base}/ai/txt2speech",

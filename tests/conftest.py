@@ -1,8 +1,10 @@
-import pytest
 import os
-import aiohttp
 from unittest.mock import AsyncMock, Mock, patch
+
+import aiohttp
+import pytest
 from dotenv import load_dotenv
+
 from putergenai import PuterClient
 
 # Load environment variables
@@ -44,31 +46,22 @@ def client_no_token():
 @pytest.fixture
 async def mock_client_session(mock_session):
     """Mock the client's session creation."""
-    with patch('putergenai.putergenai.aiohttp.ClientSession', return_value=mock_session):
-        with patch('putergenai.putergenai.ssl.create_default_context', return_value=True):
-            with patch('putergenai.putergenai.certifi.where', return_value='dummy_cert_file'):
+    with patch("putergenai.putergenai.aiohttp.ClientSession", return_value=mock_session):
+        with patch("putergenai.putergenai.ssl.create_default_context", return_value=True):
+            with patch("putergenai.putergenai.certifi.where", return_value="dummy_cert_file"):
                 yield mock_session
 
 
 @pytest.fixture
 def sample_login_response():
     """Sample successful login response."""
-    return {
-        "proceed": True,
-        "token": "sample_token_123"
-    }
+    return {"proceed": True, "token": "sample_token_123"}
 
 
 @pytest.fixture
 def sample_models_response():
     """Sample models API response."""
-    return {
-        "models": [
-            "gpt-4o",
-            "claude-3-5-sonnet-latest",
-            "gpt-5"
-        ]
-    }
+    return {"models": ["gpt-4o", "claude-3-5-sonnet-latest", "gpt-5"]}
 
 
 @pytest.fixture
@@ -76,12 +69,8 @@ def sample_chat_response():
     """Sample AI chat response."""
     return {
         "success": True,
-        "result": {
-            "message": {
-                "content": "Hello, this is a test response!"
-            }
-        },
-        "used_model": "gpt-4o"
+        "result": {"message": {"content": "Hello, this is a test response!"}},
+        "used_model": "gpt-4o",
     }
 
 
@@ -92,13 +81,13 @@ def sample_streaming_data():
         b'{"type": "text", "text": "Hello"}',
         b'{"type": "text", "text": " world"}',
         b'{"type": "text", "text": "!"}',
-        b''
+        b"",
     ]
 
 
 @pytest.fixture
 def env_credentials():
     """Get credentials from environment variables."""
-    username = os.getenv('PUTER_USERNAME')
-    password = os.getenv('PUTER_PASSWORD')
+    username = os.getenv("PUTER_USERNAME")
+    password = os.getenv("PUTER_PASSWORD")
     return {"username": username, "password": password}

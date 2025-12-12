@@ -1,5 +1,6 @@
+
 import pytest
-from unittest.mock import patch, AsyncMock
+
 from putergenai import PuterClient
 
 
@@ -39,11 +40,7 @@ class TestPuterClientInit:
 
     def test_client_init_all_params(self):
         """Test client initialization with all parameters."""
-        client = PuterClient(
-            token="test_token",
-            ignore_ssl=True,
-            auto_update_models=True
-        )
+        client = PuterClient(token="test_token", ignore_ssl=True, auto_update_models=True)
 
         assert client.token == "test_token"
         assert client.ignore_ssl is True
@@ -119,7 +116,7 @@ class TestPuterClientInit:
             "Connection",
             "Origin",
             "Referer",
-            "User-Agent"
+            "User-Agent",
         ]
 
         for header in required_headers:

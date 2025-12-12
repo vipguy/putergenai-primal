@@ -1,15 +1,16 @@
-import sys
-import logging
-import re
 import asyncio
-import time
+import logging
 import os
-from getpass import getpass
+import re
+import sys
+import time
 from collections import Counter
+from getpass import getpass
 
 # Add the src directory to the Python path for local imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from putergenai import PuterClient
+
 
 def sanitize_string(s, allow_empty=False, allow_path=False):
     """
@@ -22,10 +23,11 @@ def sanitize_string(s, allow_empty=False, allow_path=False):
     if not allow_empty and not s:
         raise ValueError("Input cannot be empty.")
     if allow_path:
-        pattern = r'^[\w\-\.\/]+$'
+        pattern = r"^[\w\-\.\/]+$"
         if not re.match(pattern, s):
             raise ValueError("Input contains invalid characters for path.")
     return s
+
 
 def sanitize_float(val, min_value=0.0, max_value=2.0, default=0.7):
     try:
@@ -36,18 +38,22 @@ def sanitize_float(val, min_value=0.0, max_value=2.0, default=0.7):
         raise ValueError(f"Value must be between {min_value} and {max_value}.")
     return f
 
+
 async def main():
     # Option to ignore SSL for debugging "Semaphore timeout" issues
-    ignore_ssl_input = input("Ignore SSL verification (try 'y' if you get timeouts)? (y/n): ").strip().lower() == 'y'
+    ignore_ssl_input = (
+        input("Ignore SSL verification (try 'y' if you get timeouts)? (y/n): ").strip().lower()
+        == "y"
+    )
 
     # Use async context manager for proper session handling
     async with PuterClient(ignore_ssl=ignore_ssl_input) as client:
         # Configure logging to a file to avoid interleaving with console output
-        logger = logging.getLogger('putergenai.client')
+        logger = logging.getLogger("putergenai.client")
         logger.handlers = []  # Clear existing handlers
         # Log to a file instead of stdout
-        file_handler = logging.FileHandler('putergenai.log')
-        file_handler.setFormatter(logging.Formatter('%(levelname)s:%(name)s:%(message)s'))
+        file_handler = logging.FileHandler("putergenai.log")
+        file_handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
         logger.addHandler(file_handler)
 
         # Login
@@ -75,16 +81,17 @@ async def main():
         # Retrieving current models from API
         print("\n Retrieving current models from API ")
         available_models = []  # Will be defined here
-        has_dynamic_api = hasattr(client, 'get_available_models')
+        has_dynamic_api = hasattr(client, "get_available_models")
         if has_dynamic_api:
             try:
                 models_data = await client.get_available_models()
                 # Используем новый метод для получения списка ID моделей
-                if hasattr(client, 'get_model_list'):
+                if hasattr(client, "get_model_list"):
                     available_models = client.get_model_list(models_data)
                 else:
                     # Fallback для обратной совместимости
-                    models = models_data.get('models', [])
+                    models = models_data.get("models", [])
+
                     def extract_model_id(item):
                         if isinstance(item, str):
                             return item
@@ -104,15 +111,12 @@ async def main():
                         else:
                             return str(item)
 
-                    available_models = [
-                        extract_model_id(m)
-                        for m in models
-                    ]
+                    available_models = [extract_model_id(m) for m in models]
                 total_models = len(available_models)
                 print(f"✓ Successfully retrieved {total_models} models")
 
                 # Optionally: show first 10
-                show_preview = input("Show first 10 models? (y/n): ").strip().lower() == 'y'
+                show_preview = input("Show first 10 models? (y/n): ").strip().lower() == "y"
                 if show_preview and available_models:
                     for i, model in enumerate(available_models[:10], 1):
                         print(f"  {i}. {model}")
@@ -127,9 +131,11 @@ async def main():
 
         # Updating driver mappings
         print("\n Updating model mappings ")
-        has_mappings_api = hasattr(client, 'update_model_mappings')
+        has_mappings_api = hasattr(client, "update_model_mappings")
         if has_mappings_api:
-            update_mappings = input("Update model→driver mappings from API? (y/n): ").strip().lower() == 'y'
+            update_mappings = (
+                input("Update model→driver mappings from API? (y/n): ").strip().lower() == "y"
+            )
 
             if update_mappings:
                 try:
@@ -154,19 +160,19 @@ async def main():
         filter_choice = input("Choose option (1-5, Enter to skip): ").strip()
 
         filtered_models = []
-        if filter_choice == '1':
+        if filter_choice == "1":
             filtered_models = available_models
-        elif filter_choice == '2':
+        elif filter_choice == "2":
             provider = input("Enter provider prefix (e.g., openrouter): ").strip()
             filtered_models = [m for m in available_models if m.startswith(provider)]
-        elif filter_choice == '3':
+        elif filter_choice == "3":
             driver = input("Enter driver (e.g., openai-completion): ").strip()
             filtered_models = [m for m, d in client.model_to_driver.items() if d == driver]
-        elif filter_choice == '4':
+        elif filter_choice == "4":
             search_term = input("Enter part of model name: ").strip().lower()
             filtered_models = [m for m in available_models if search_term in m.lower()]
-        elif filter_choice == '5':
-            filtered_models = [m for m in available_models if ':free' in m]
+        elif filter_choice == "5":
+            filtered_models = [m for m in available_models if ":free" in m]
         else:
             filtered_models = available_models
 
@@ -180,7 +186,7 @@ async def main():
 
         # Model availability check
         print("\n Model availability check ")
-        has_model_check = hasattr(client, 'is_model_available')
+        has_model_check = hasattr(client, "is_model_available")
         if has_model_check:
             check_model = input("Enter model name to check (Enter to skip): ").strip()
 
@@ -206,7 +212,7 @@ async def main():
 
         # Statistics
         print("\n Model Statistics ")
-        show_stats = input("Show statistics by drivers? (y/n): ").strip().lower() == 'y'
+        show_stats = input("Show statistics by drivers? (y/n): ").strip().lower() == "y"
 
         if show_stats:
             driver_stats = Counter(client.model_to_driver.values())
@@ -220,19 +226,21 @@ async def main():
             # Top providers
             provider_counts = {}
             for model in available_models:
-                if ':' in model:
-                    provider = model.split(':')[0]
+                if ":" in model:
+                    provider = model.split(":")[0]
                     provider_counts[provider] = provider_counts.get(provider, 0) + 1
 
             if provider_counts:
                 print("\nTop-5 providers:")
-                for provider, count in sorted(provider_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
+                for provider, count in sorted(
+                    provider_counts.items(), key=lambda x: x[1], reverse=True
+                )[:5]:
                     print(f"  {provider}: {count} models")
 
         # Caching demonstration
         print("\n Caching test ")
         if has_dynamic_api:
-            test_cache = input("Test caching? (y/n): ").strip().lower() == 'y'
+            test_cache = input("Test caching? (y/n): ").strip().lower() == "y"
 
             if test_cache:
                 print("First request (without cache)...")
@@ -260,7 +268,7 @@ async def main():
             print("Caching test unavailable (no dynamic API)")
 
         # Debugging option
-        debug_input = input("Enable debug logging? (y/n): ").strip().lower() == 'y'
+        debug_input = input("Enable debug logging? (y/n): ").strip().lower() == "y"
         if not debug_input:
             logger.setLevel(logging.CRITICAL + 1)  # Suppress all logs
         else:
@@ -289,13 +297,13 @@ async def main():
                 print("Please enter a valid number.")
 
         # Stream option
-        stream_input = input("Enable streaming? (y/n): ").strip().lower() == 'y'
+        stream_input = input("Enable streaming? (y/n): ").strip().lower() == "y"
 
         # Test mode option
-        test_mode_input = input("Enable test mode? (y/n): ").strip().lower() == 'y'
+        test_mode_input = input("Enable test mode? (y/n): ").strip().lower() == "y"
 
         # Strict model option
-        strict_model_input = input("Enforce strict model usage? (y/n): ").strip().lower() == 'y'
+        strict_model_input = input("Enforce strict model usage? (y/n): ").strip().lower() == "y"
 
         # Temperature
         while True:
@@ -307,12 +315,12 @@ async def main():
                 print(f"Temperature error: {e}")
 
         # Show used model option
-        show_model_input = input("Show used model after response? (y/n): ").strip().lower() == 'y'
+        show_model_input = input("Show used model after response? (y/n): ").strip().lower() == "y"
 
         options = {
             "model": selected_model,
             "stream": stream_input,
-            "temperature": temperature_input
+            "temperature": temperature_input,
         }
 
         # Chat history
@@ -320,11 +328,11 @@ async def main():
 
         print("\nChat started. Type 'exit' to quit.")
         # Do not log sensitive info
-        logging.getLogger('putergenai.client').propagate = False
+        logging.getLogger("putergenai.client").propagate = False
 
         while True:
             user_input = input("\nYou: ")
-            if user_input.lower().strip() == 'exit':
+            if user_input.lower().strip() == "exit":
                 break
 
             # For chat, allow natural language (no sanitization)
@@ -337,17 +345,17 @@ async def main():
                         messages=messages,
                         options=options,
                         test_mode=test_mode_input,
-                        strict_model=strict_model_input
+                        strict_model=strict_model_input,
                     )
 
-                    print("Assistant: ", end='', flush=True)
-                    response_content = ''
+                    print("Assistant: ", end="", flush=True)
+                    response_content = ""
                     used_model = selected_model
 
                     async for content, model in gen:
                         if content:  # Skip empty content
-                            safe_content = str(content).replace('\x1b', '')
-                            print(safe_content, end='', flush=True)
+                            safe_content = str(content).replace("\x1b", "")
+                            print(safe_content, end="", flush=True)
                             response_content += safe_content
                             used_model = model
 
@@ -361,30 +369,31 @@ async def main():
                         messages=messages,
                         options=options,
                         test_mode=test_mode_input,
-                        strict_model=strict_model_input
+                        strict_model=strict_model_input,
                     )
 
                     # Extract content based on Puter API response structure
                     content = ""
-                    if 'result' in result["response"]:
+                    if "result" in result["response"]:
                         res_data = result["response"]["result"]
-                        if 'message' in res_data:
-                            message = res_data['message']
+                        if "message" in res_data:
+                            message = res_data["message"]
                             if isinstance(message, dict):
-                                content = message.get('content', '')
+                                content = message.get("content", "")
                             else:
                                 content = str(message)
-                        elif 'choices' in res_data: # OpenAI style fallback
-                             content = res_data['choices'][0]['message']['content']
+                        elif "choices" in res_data:  # OpenAI style fallback
+                            content = res_data["choices"][0]["message"]["content"]
 
                     used_model = result["used_model"]
-                    safe_content = str(content).replace('\x1b', '')
+                    safe_content = str(content).replace("\x1b", "")
                     print(f"Assistant: {safe_content}")
                     if show_model_input or debug_input:
                         print(f"Used model: {used_model}")
                     messages.append({"role": "assistant", "content": safe_content})
             except Exception as e:
                 print(f"Error: {e}")
+
 
 if __name__ == "__main__":
     try:

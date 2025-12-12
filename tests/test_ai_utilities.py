@@ -1,6 +1,7 @@
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import patch, AsyncMock
-from putergenai import PuterClient
+
 
 
 class TestAIUtilities:
@@ -72,6 +73,7 @@ class TestAIUtilities:
     async def test_ai_img2txt_network_error(self, client, mock_client_session):
         """Test ai_img2txt with network error."""
         from aiohttp import ClientError
+
         mock_client_session.post.side_effect = ClientError("Network error")
 
         with pytest.raises(ClientError):
@@ -88,7 +90,9 @@ class TestAIUtilities:
         """Test ai_txt2img successful operation."""
         # Setup mocks
         mock_client_session.post.return_value.__aenter__.return_value = mock_response
-        mock_response.json.return_value = {"result": {"image_url": "https://example.com/generated.jpg"}}
+        mock_response.json.return_value = {
+            "result": {"image_url": "https://example.com/generated.jpg"}
+        }
 
         # Call function
         result = await client.ai_txt2img("A beautiful sunset")
@@ -137,7 +141,9 @@ class TestAIUtilities:
         assert payload["args"]["testMode"] is True
 
     @pytest.mark.asyncio
-    async def test_ai_txt2img_alternative_response_format(self, client, mock_client_session, mock_response):
+    async def test_ai_txt2img_alternative_response_format(
+        self, client, mock_client_session, mock_response
+    ):
         """Test ai_txt2img with alternative response format."""
         # Setup mocks with url in result
         mock_client_session.post.return_value.__aenter__.return_value = mock_response
@@ -148,7 +154,9 @@ class TestAIUtilities:
         assert result == "https://example.com/img.jpg"
 
     @pytest.mark.asyncio
-    async def test_ai_txt2img_data_response_format(self, client, mock_client_session, mock_response):
+    async def test_ai_txt2img_data_response_format(
+        self, client, mock_client_session, mock_response
+    ):
         """Test ai_txt2img with data response format."""
         # Setup mocks with data in result
         mock_client_session.post.return_value.__aenter__.return_value = mock_response
@@ -221,6 +229,7 @@ class TestAIUtilities:
     async def test_ai_txt2speech_network_error(self, client, mock_client_session):
         """Test ai_txt2speech with network error."""
         from aiohttp import ClientError
+
         mock_client_session.post.side_effect = ClientError("Network error")
 
         with pytest.raises(ClientError):
@@ -245,11 +254,11 @@ class TestAIUtilities:
         assert client.model_to_driver["claude-3-sonnet"] == "claude"
 
     @pytest.mark.asyncio
-    async def test_update_model_mappings_with_provider(self, client, mock_client_session, mock_response):
+    async def test_update_model_mappings_with_provider(
+        self, client, mock_client_session, mock_response
+    ):
         """Test update_model_mappings with provider inference."""
-        models_data = {
-            "models": ["test-claude-model"]
-        }
+        models_data = {"models": ["test-claude-model"]}
 
         # Setup mocks
         mock_client_session.get.return_value.__aenter__.return_value = mock_response
@@ -262,7 +271,9 @@ class TestAIUtilities:
         assert "test-claude-model" in client.model_to_driver
 
     @pytest.mark.asyncio
-    async def test_update_model_mappings_heuristic_fallback(self, client, mock_client_session, mock_response):
+    async def test_update_model_mappings_heuristic_fallback(
+        self, client, mock_client_session, mock_response
+    ):
         """Test update_model_mappings heuristic driver detection."""
         models_data = {
             "models": ["openrouter:gpt-4", "togetherai:llama-2", "claude-3-sonnet", "unknown-model"]

@@ -1,6 +1,7 @@
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import patch, AsyncMock
-from putergenai import PuterClient
+
 
 
 class TestFilesystem:
@@ -89,6 +90,7 @@ class TestFilesystem:
     async def test_fs_write_network_error(self, client, mock_client_session):
         """Test fs_write with network error."""
         from aiohttp import ClientError
+
         mock_client_session.post.side_effect = ClientError("Network error")
 
         with pytest.raises(ClientError):
@@ -129,6 +131,7 @@ class TestFilesystem:
     async def test_fs_read_network_error(self, client, mock_client_session):
         """Test fs_read with network error."""
         from aiohttp import ClientError
+
         mock_client_session.get.side_effect = ClientError("Network error")
 
         with pytest.raises(ClientError):
@@ -165,6 +168,7 @@ class TestFilesystem:
     async def test_fs_delete_network_error(self, client, mock_client_session):
         """Test fs_delete with network error."""
         from aiohttp import ClientError
+
         mock_client_session.post.side_effect = ClientError("Network error")
 
         with pytest.raises(ClientError):

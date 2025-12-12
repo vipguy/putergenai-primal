@@ -1,6 +1,14 @@
 import pytest
 from pydantic import ValidationError
-from putergenai.putergenai import validate_string, validate_path, validate_url, NonEmptyStr, PathStr, UrlStr
+
+from putergenai.putergenai import (
+    NonEmptyStr,
+    PathStr,
+    UrlStr,
+    validate_path,
+    validate_string,
+    validate_url,
+)
 
 
 class TestValidators:
@@ -31,7 +39,7 @@ class TestValidators:
             "path/to/file.txt",
             "file-name_123.txt",
             "/absolute/path/file.txt",
-            "file.with.dots.txt"
+            "file.with.dots.txt",
         ]
         for path in valid_paths:
             assert validate_path(path) == path

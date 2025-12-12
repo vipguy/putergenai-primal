@@ -1,13 +1,15 @@
+
 import pytest
-from unittest.mock import patch, AsyncMock
-from putergenai import PuterClient
+
 
 
 class TestAIChat:
     """Test AI chat functionality."""
 
     @pytest.mark.asyncio
-    async def test_ai_chat_non_streaming_success(self, client, mock_client_session, mock_response, sample_chat_response):
+    async def test_ai_chat_non_streaming_success(
+        self, client, mock_client_session, mock_response, sample_chat_response
+    ):
         """Test successful non-streaming AI chat."""
         # Setup mocks
         mock_client_session.post.return_value.__aenter__.return_value = mock_response
@@ -22,7 +24,9 @@ class TestAIChat:
         assert result["used_model"] == "gpt-4o"
 
     @pytest.mark.asyncio
-    async def test_ai_chat_with_messages(self, client, mock_client_session, mock_response, sample_chat_response):
+    async def test_ai_chat_with_messages(
+        self, client, mock_client_session, mock_response, sample_chat_response
+    ):
         """Test AI chat with explicit messages."""
         # Setup mocks
         mock_client_session.post.return_value.__aenter__.return_value = mock_response
@@ -39,18 +43,15 @@ class TestAIChat:
         assert payload["args"]["messages"] == messages
 
     @pytest.mark.asyncio
-    async def test_ai_chat_with_options(self, client, mock_client_session, mock_response, sample_chat_response):
+    async def test_ai_chat_with_options(
+        self, client, mock_client_session, mock_response, sample_chat_response
+    ):
         """Test AI chat with custom options."""
         # Setup mocks
         mock_client_session.post.return_value.__aenter__.return_value = mock_response
         mock_response.json.return_value = sample_chat_response
 
-        options = {
-            "model": "gpt-5",
-            "temperature": 1,
-            "max_tokens": 100,
-            "stream": False
-        }
+        options = {"model": "gpt-5", "temperature": 1, "max_tokens": 100, "stream": False}
 
         result = await client.ai_chat(prompt="Hello", options=options)
 
@@ -64,7 +65,9 @@ class TestAIChat:
         assert payload["stream"] is False
 
     @pytest.mark.asyncio
-    async def test_ai_chat_force_temperature_1(self, client, mock_client_session, mock_response, sample_chat_response):
+    async def test_ai_chat_force_temperature_1(
+        self, client, mock_client_session, mock_response, sample_chat_response
+    ):
         """Test that certain models force temperature to 1."""
         # Setup mocks
         mock_client_session.post.return_value.__aenter__.return_value = mock_response
@@ -81,7 +84,9 @@ class TestAIChat:
         assert payload["args"]["temperature"] == 1
 
     @pytest.mark.asyncio
-    async def test_ai_chat_with_image_url(self, client, mock_client_session, mock_response, sample_chat_response):
+    async def test_ai_chat_with_image_url(
+        self, client, mock_client_session, mock_response, sample_chat_response
+    ):
         """Test AI chat with image URL."""
         # Setup mocks
         mock_client_session.post.return_value.__aenter__.return_value = mock_response
@@ -102,7 +107,9 @@ class TestAIChat:
         assert content[1]["type"] == "image_url"
 
     @pytest.mark.asyncio
-    async def test_ai_chat_with_multiple_images(self, client, mock_client_session, mock_response, sample_chat_response):
+    async def test_ai_chat_with_multiple_images(
+        self, client, mock_client_session, mock_response, sample_chat_response
+    ):
         """Test AI chat with multiple image URLs."""
         # Setup mocks
         mock_client_session.post.return_value.__aenter__.return_value = mock_response
@@ -124,7 +131,6 @@ class TestAIChat:
         with pytest.raises(ValueError):  # URL validation should fail
             await client.ai_chat(prompt="Hello", image_url="not-a-url")
 
-
     @pytest.mark.asyncio
     async def test_ai_chat_fallback_on_error(self, client, mock_client_session, mock_response):
         """Test model fallback on error."""
@@ -132,7 +138,7 @@ class TestAIChat:
         mock_client_session.post.return_value.__aenter__.return_value = mock_response
         mock_response.json.return_value = {
             "success": False,
-            "error": {"message": "Model unavailable", "code": "no_implementation_available"}
+            "error": {"message": "Model unavailable", "code": "no_implementation_available"},
         }
 
         # This should trigger fallback to next model
@@ -147,16 +153,12 @@ class TestAIChat:
         mock_client_session.post.return_value.__aenter__.return_value = mock_response
         mock_response.json.return_value = {
             "success": False,
-            "error": {"message": "Model unavailable", "code": "forbidden"}
+            "error": {"message": "Model unavailable", "code": "forbidden"},
         }
 
         # With strict_model=True, should raise immediately
         with pytest.raises(ValueError, match="Model .* unavailable"):
-            await client.ai_chat(
-                prompt="Hello",
-                options={"model": "gpt-5-nano"},
-                strict_model=True
-            )
+            await client.ai_chat(prompt="Hello", options={"model": "gpt-5-nano"}, strict_model=True)
 
     @pytest.mark.asyncio
     async def test_ai_chat_with_error_response(self, client, mock_client_session, mock_response):
@@ -165,7 +167,7 @@ class TestAIChat:
         mock_client_session.post.return_value.__aenter__.return_value = mock_response
         mock_response.json.return_value = {
             "success": False,
-            "error": {"message": "Test error", "code": "test_error"}
+            "error": {"message": "Test error", "code": "test_error"},
         }
 
         # Should raise ValueError
@@ -182,13 +184,16 @@ class TestAIChat:
     async def test_ai_chat_network_error(self, client, mock_client_session):
         """Test AI chat with network error."""
         from aiohttp import ClientError
+
         mock_client_session.post.side_effect = ClientError("Network error")
 
         with pytest.raises(ClientError):
             await client.ai_chat(prompt="Hello")
 
     @pytest.mark.asyncio
-    async def test_ai_chat_invalid_response_format(self, client, mock_client_session, mock_response):
+    async def test_ai_chat_invalid_response_format(
+        self, client, mock_client_session, mock_response
+    ):
         """Test AI chat with invalid response format."""
         mock_client_session.post.return_value.__aenter__.return_value = mock_response
         mock_response.json.return_value = {"invalid": "response"}
@@ -196,4 +201,3 @@ class TestAIChat:
         # This should not raise an error, just return the response
         result = await client.ai_chat(prompt="Hello")
         assert "response" in result
-
