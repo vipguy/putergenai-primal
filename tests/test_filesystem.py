@@ -1,6 +1,3 @@
-
-
-
 class TestFilesystem:
     """Test filesystem operations."""
 
