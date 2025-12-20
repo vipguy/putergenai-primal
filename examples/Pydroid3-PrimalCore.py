@@ -13,16 +13,16 @@ Notes:
 - PrimalCore was here.
 """
 
-import sys
+import html
+import json
+import logging
 import os
 import re
-import json
+import sys
 import time
-import logging
-import html
-from typing import Any, Dict, Generator, List, Optional, Union
-from urllib.parse import urlparse, quote_plus
 from getpass import getpass
+from typing import Any, Dict, Generator, List, Optional, Union
+from urllib.parse import quote_plus, urlparse
 
 import requests
 
@@ -35,6 +35,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("puter_pollinations_cli")
 
+
 # ---------- Helpers ----------
 def sanitize_string(s, allow_empty=False, allow_path=False):
     if not isinstance(s, str):
@@ -43,10 +44,11 @@ def sanitize_string(s, allow_empty=False, allow_path=False):
     if not allow_empty and not s:
         raise ValueError("Input cannot be empty.")
     if allow_path:
-        pattern = r'^[\w\-\.\/]+$'
+        pattern = r"^[\w\-\.\/]+$"
         if not re.match(pattern, s):
             raise ValueError("Input contains invalid characters for path.")
     return s
+
 
 def sanitize_float(val, min_value=0.0, max_value=2.0, default=0.7):
     try:
@@ -57,6 +59,7 @@ def sanitize_float(val, min_value=0.0, max_value=2.0, default=0.7):
         raise ValueError(f"Value must be between {min_value} and {max_value}.")
     return f
 
+
 def sanitize_int(val, min_value: int, max_value: int, default: int):
     try:
         n = int(val)
@@ -66,6 +69,7 @@ def sanitize_int(val, min_value: int, max_value: int, default: int):
         raise ValueError(f"Value must be between {min_value} and {max_value}.")
     return n
 
+
 def sanitize_url(url):
     if not isinstance(url, str):
         raise ValueError("Invalid URL: not a string.")
@@ -74,11 +78,13 @@ def sanitize_url(url):
         raise ValueError("Invalid URL.")
     return url
 
+
 def safe_input(prompt: str) -> str:
     try:
         return input(prompt)
     except EOFError:
         return ""
+
 
 def get_password(prompt: str) -> str:
     try:
@@ -87,21 +93,23 @@ def get_password(prompt: str) -> str:
         # Some Android terminals might not support getpass masking
         return input(prompt)
 
+
 def strip_html_to_text(s: str) -> str:
     """Convert simple HTML to plain text for Pollinations replies."""
     if not s:
         return ""
     # Normalize breaks/paragraphs to newlines
-    s = re.sub(r'(?i)<\s*br\s*/?\s*>', '\n', s)
-    s = re.sub(r'(?i)</\s*p\s*>', '\n\n', s)
-    s = re.sub(r'(?i)<\s*p\s*>', '', s)
+    s = re.sub(r"(?i)<\s*br\s*/?\s*>", "\n", s)
+    s = re.sub(r"(?i)</\s*p\s*>", "\n\n", s)
+    s = re.sub(r"(?i)<\s*p\s*>", "", s)
     # Remove other tags
-    s = re.sub(r'<[^>]+>', '', s)
+    s = re.sub(r"<[^>]+>", "", s)
     # Unescape entities
     s = html.unescape(s)
     # Collapse excessive blank lines
-    s = re.sub(r'\n{3,}', '\n\n', s).strip()
+    s = re.sub(r"\n{3,}", "\n\n", s).strip()
     return s
+
 
 # ---------- Puter Client ----------
 class PuterClient:
@@ -196,7 +204,13 @@ class PuterClient:
         elif not isinstance(content, bytes):
             raise ValueError("Content must be str, bytes, or file-like.")
         try:
-            r = requests.post(f"{self.api_base}/write", params={"path": path}, data=content, headers=headers, timeout=60)
+            r = requests.post(
+                f"{self.api_base}/write",
+                params={"path": path},
+                data=content,
+                headers=headers,
+                timeout=60,
+            )
             r.raise_for_status()
             return r.json()
         except requests.RequestException as e:
@@ -206,7 +220,9 @@ class PuterClient:
         path = sanitize_string(path, allow_path=True)
         headers = self._auth_headers()
         try:
-            r = requests.get(f"{self.api_base}/read", params={"path": path}, headers=headers, timeout=60)
+            r = requests.get(
+                f"{self.api_base}/read", params={"path": path}, headers=headers, timeout=60
+            )
             r.raise_for_status()
             return r.content
         except requests.RequestException as e:
@@ -216,7 +232,9 @@ class PuterClient:
         path = sanitize_string(path, allow_path=True)
         headers = self._auth_headers()
         try:
-            r = requests.post(f"{self.api_base}/delete", params={"path": path}, headers=headers, timeout=30)
+            r = requests.post(
+                f"{self.api_base}/delete", params={"path": path}, headers=headers, timeout=30
+            )
             r.raise_for_status()
         except requests.RequestException as e:
             raise ValueError(f"fs_delete error: {e}")
@@ -248,7 +266,9 @@ class PuterClient:
                 if image_url:
                     if not isinstance(image_url, list):
                         image_url = [image_url]
-                    parts = [{"type": "text", "text": content}] if isinstance(content, str) else content
+                    parts = (
+                        [{"type": "text", "text": content}] if isinstance(content, str) else content
+                    )
                     for url in image_url:
                         parts.append({"type": "image_url", "image_url": {"url": sanitize_url(url)}})
                     content = parts
@@ -288,7 +308,13 @@ class PuterClient:
             return used_model or requested_model
 
         try:
-            r = requests.post(f"{self.api_base}/drivers/call", json=payload, headers=headers, stream=stream, timeout=120)
+            r = requests.post(
+                f"{self.api_base}/drivers/call",
+                json=payload,
+                headers=headers,
+                stream=stream,
+                timeout=120,
+            )
             r.raise_for_status()
             if stream:
                 it = r.iter_lines()
@@ -300,7 +326,9 @@ class PuterClient:
                         data = json.loads(line)
                         if not data.get("success", True):
                             error_data = data.get("error", {})
-                            raise ValueError(f"API error: {error_data.get('message','Unknown')} (code: {error_data.get('code')})")
+                            raise ValueError(
+                                f"API error: {error_data.get('message','Unknown')} (code: {error_data.get('code')})"
+                            )
                         used_model = check_used_model(data, requested_model, strict)
                         if "type" in data and data["type"] == "text" and "text" in data:
                             return data["text"], used_model
@@ -337,21 +365,49 @@ class PuterClient:
                         _ = process_line(first, model, strict_model)
                     except ValueError as e:
                         msg = str(e)
-                        if any(code in msg for code in ("no_implementation_available", "forbidden")) and retry_count < self.max_retries:
+                        if (
+                            any(
+                                code in msg for code in ("no_implementation_available", "forbidden")
+                            )
+                            and retry_count < self.max_retries
+                        ):
                             if strict_model:
                                 raise ValueError("Strict model enforced; no fallback.")
                             if not test_mode:
-                                return self.ai_chat(prompt=prompt, options=options, test_mode=True, image_url=image_url,
-                                                    messages=messages, retry_count=retry_count+1, strict_model=strict_model)
+                                return self.ai_chat(
+                                    prompt=prompt,
+                                    options=options,
+                                    test_mode=True,
+                                    image_url=image_url,
+                                    messages=messages,
+                                    retry_count=retry_count + 1,
+                                    strict_model=strict_model,
+                                )
                             # fallback to next model
-                            idx = self.fallback_models.index(model) if model in self.fallback_models else -1
-                            nxt = self.fallback_models[idx+1] if idx >= 0 and idx+1 < len(self.fallback_models) else None
+                            idx = (
+                                self.fallback_models.index(model)
+                                if model in self.fallback_models
+                                else -1
+                            )
+                            nxt = (
+                                self.fallback_models[idx + 1]
+                                if idx >= 0 and idx + 1 < len(self.fallback_models)
+                                else None
+                            )
                             if nxt:
                                 options["model"] = nxt
                                 time.sleep(1)
-                                return self.ai_chat(prompt=prompt, options=options, test_mode=test_mode, image_url=image_url,
-                                                    messages=messages, retry_count=retry_count+1, strict_model=strict_model)
+                                return self.ai_chat(
+                                    prompt=prompt,
+                                    options=options,
+                                    test_mode=test_mode,
+                                    image_url=image_url,
+                                    messages=messages,
+                                    retry_count=retry_count + 1,
+                                    strict_model=strict_model,
+                                )
                             raise
+
                 def generator():
                     if first:
                         proc = process_line(first, model, strict_model)
@@ -361,6 +417,7 @@ class PuterClient:
                         proc = process_line(line, model, strict_model)
                         if proc:
                             yield proc
+
                 return generator()
             else:
                 data = r.json()
@@ -368,20 +425,45 @@ class PuterClient:
                     err = data.get("error", {})
                     code = err.get("code")
                     msg = err.get("message", "Unknown error")
-                    if code in ("no_implementation_available", "forbidden") and retry_count < self.max_retries:
+                    if (
+                        code in ("no_implementation_available", "forbidden")
+                        and retry_count < self.max_retries
+                    ):
                         if strict_model:
                             raise ValueError("Strict model enforced; no fallback.")
                         if not test_mode:
-                            return self.ai_chat(prompt=prompt, options=options, test_mode=True, image_url=image_url,
-                                                messages=messages, retry_count=retry_count+1, strict_model=strict_model)
+                            return self.ai_chat(
+                                prompt=prompt,
+                                options=options,
+                                test_mode=True,
+                                image_url=image_url,
+                                messages=messages,
+                                retry_count=retry_count + 1,
+                                strict_model=strict_model,
+                            )
                         # fallback chain
-                        idx = self.fallback_models.index(model) if model in self.fallback_models else -1
-                        nxt = self.fallback_models[idx+1] if idx >= 0 and idx+1 < len(self.fallback_models) else None
+                        idx = (
+                            self.fallback_models.index(model)
+                            if model in self.fallback_models
+                            else -1
+                        )
+                        nxt = (
+                            self.fallback_models[idx + 1]
+                            if idx >= 0 and idx + 1 < len(self.fallback_models)
+                            else None
+                        )
                         if nxt:
                             options["model"] = nxt
                             time.sleep(1)
-                            return self.ai_chat(prompt=prompt, options=options, test_mode=test_mode, image_url=image_url,
-                                                messages=messages, retry_count=retry_count+1, strict_model=strict_model)
+                            return self.ai_chat(
+                                prompt=prompt,
+                                options=options,
+                                test_mode=test_mode,
+                                image_url=image_url,
+                                messages=messages,
+                                retry_count=retry_count + 1,
+                                strict_model=strict_model,
+                            )
                         raise ValueError(f"No implementation available for {model}: {msg}")
                 used_model = check_used_model(data, model, strict_model)
                 return {"response": data, "used_model": used_model}
@@ -393,16 +475,26 @@ class PuterClient:
         try:
             if isinstance(image, str):
                 payload = {"image_url": sanitize_url(image), "testMode": test_mode}
-                r = requests.post(f"{self.api_base}/ai/img2txt", json=payload, headers=headers, timeout=120)
+                r = requests.post(
+                    f"{self.api_base}/ai/img2txt", json=payload, headers=headers, timeout=120
+                )
             else:
                 files = {"image": image}
-                r = requests.post(f"{self.api_base}/ai/img2txt", files=files, data={"testMode": test_mode}, headers=headers, timeout=120)
+                r = requests.post(
+                    f"{self.api_base}/ai/img2txt",
+                    files=files,
+                    data={"testMode": test_mode},
+                    headers=headers,
+                    timeout=120,
+                )
             r.raise_for_status()
             return r.json().get("text", "")
         except requests.RequestException as e:
             raise ValueError(f"ai_img2txt error: {e}")
 
-    def ai_txt2img(self, prompt: str, model: str = "pollinations-image", test_mode: bool = False) -> str:
+    def ai_txt2img(
+        self, prompt: str, model: str = "pollinations-image", test_mode: bool = False
+    ) -> str:
         payload = {
             "interface": "puter-image-generation",
             "driver": model,
@@ -412,12 +504,18 @@ class PuterClient:
         }
         headers = self._auth_headers()
         try:
-            r = requests.post(f"{self.api_base}/drivers/call", json=payload, headers=headers, timeout=120)
+            r = requests.post(
+                f"{self.api_base}/drivers/call", json=payload, headers=headers, timeout=120
+            )
             r.raise_for_status()
             data = r.json()
             if "result" in data:
                 if isinstance(data["result"], dict):
-                    return data["result"].get("image_url") or data["result"].get("url") or data["result"].get("data", "")
+                    return (
+                        data["result"].get("image_url")
+                        or data["result"].get("url")
+                        or data["result"].get("data", "")
+                    )
             raise ValueError(f"Unexpected response format: {data}")
         except requests.RequestException as e:
             raise ValueError(f"ai_txt2img error: {e}")
@@ -428,11 +526,14 @@ class PuterClient:
         payload = {"text": text, "testMode": options.get("testMode", False)}
         headers = self._auth_headers()
         try:
-            r = requests.post(f"{self.api_base}/ai/txt2speech", json=payload, headers=headers, timeout=120)
+            r = requests.post(
+                f"{self.api_base}/ai/txt2speech", json=payload, headers=headers, timeout=120
+            )
             r.raise_for_status()
             return r.content
         except requests.RequestException as e:
             raise ValueError(f"ai_txt2speech error: {e}")
+
 
 # ---------- Pollinations (direct) ----------
 class PollinationsClient:
@@ -441,6 +542,7 @@ class PollinationsClient:
     - Chat: tries POST JSON, falls back to simple GET /{prompt}
     - Image: GET image URL and save file
     """
+
     def __init__(self):
         self.text_base = "https://text.pollinations.ai"
         self.image_base = "https://image.pollinations.ai/prompt"
@@ -450,7 +552,13 @@ class PollinationsClient:
             "User-Agent": "Mozilla/5.0 (Linux; Android 10) Pydroid3/1.0",
         }
 
-    def chat(self, prompt: str, temperature: float = 0.7, max_tokens: int = 512, system: Optional[str] = None) -> str:
+    def chat(
+        self,
+        prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 512,
+        system: Optional[str] = None,
+    ) -> str:
         prompt = prompt.strip()
         if not prompt:
             return ""
@@ -458,7 +566,7 @@ class PollinationsClient:
         try:
             payload = {
                 "messages": ([{"role": "system", "content": system}] if system else [])
-                            + [{"role": "user", "content": prompt}],
+                + [{"role": "user", "content": prompt}],
                 "temperature": temperature,
                 "max_tokens": max_tokens,
             }
@@ -478,7 +586,9 @@ class PollinationsClient:
         except Exception as e:
             raise ValueError(f"Pollinations chat failed: {e}")
 
-    def generate_image(self, prompt: str, size: str = "1024x1024", out_path: Optional[str] = None) -> str:
+    def generate_image(
+        self, prompt: str, size: str = "1024x1024", out_path: Optional[str] = None
+    ) -> str:
         """
         Downloads the generated image locally and returns the local file path.
         """
@@ -498,13 +608,17 @@ class PollinationsClient:
         except Exception as e:
             raise ValueError(f"Pollinations image failed: {e}")
 
+
 # ---------- CLI ----------
 def ask_yes_no(prompt: str) -> bool:
     while True:
         ans = safe_input(prompt).strip().lower()
-        if ans in ("y", "yes"): return True
-        if ans in ("n", "no"): return False
+        if ans in ("y", "yes"):
+            return True
+        if ans in ("n", "no"):
+            return False
         print("Please enter y or n.")
+
 
 def ask_float(prompt: str, minv: float, maxv: float, default: float) -> float:
     while True:
@@ -514,6 +628,7 @@ def ask_float(prompt: str, minv: float, maxv: float, default: float) -> float:
         except ValueError as e:
             print(e)
 
+
 def ask_int(prompt: str, minv: int, maxv: int, default: int) -> int:
     while True:
         raw = safe_input(prompt).strip()
@@ -521,6 +636,7 @@ def ask_int(prompt: str, minv: int, maxv: int, default: int) -> int:
             return sanitize_int(raw or default, minv, maxv, default)
         except ValueError as e:
             print(e)
+
 
 def choose_from_list(title: str, items: List[str]) -> int:
     print(f"\n{title}")
@@ -535,6 +651,7 @@ def choose_from_list(title: str, items: List[str]) -> int:
             print(f"Please select a number between 1 and {len(items)}.")
         except ValueError:
             print("Please enter a valid number.")
+
 
 def chat_puter(client: PuterClient):
     # Choose model from Puter map (no pollinations-text here)
@@ -564,7 +681,12 @@ def chat_puter(client: PuterClient):
         messages.append({"role": "user", "content": user_input})
         try:
             if stream:
-                gen = client.ai_chat(messages=messages, options=options, test_mode=test_mode, strict_model=strict_model)
+                gen = client.ai_chat(
+                    messages=messages,
+                    options=options,
+                    test_mode=test_mode,
+                    strict_model=strict_model,
+                )
                 print("Assistant: ", end="", flush=True)
                 buf = ""
                 used_model = selected_model
@@ -579,7 +701,12 @@ def chat_puter(client: PuterClient):
                     print(f"(Used model: {used_model})")
                 messages.append({"role": "assistant", "content": buf})
             else:
-                res = client.ai_chat(messages=messages, options=options, test_mode=test_mode, strict_model=strict_model)
+                res = client.ai_chat(
+                    messages=messages,
+                    options=options,
+                    test_mode=test_mode,
+                    strict_model=strict_model,
+                )
                 content = res["response"].get("result", {}).get("message", {}).get("content", "")
                 used_model = res["used_model"]
                 safe_content = str(content).replace("\x1b", "")
@@ -589,6 +716,7 @@ def chat_puter(client: PuterClient):
                 messages.append({"role": "assistant", "content": safe_content})
         except Exception as e:
             print(f"Error: {e}")
+
 
 def chat_pollinations(pclient: PollinationsClient):
     temperature = ask_float("Enter temperature (0-2, default 0.7): ", 0.0, 2.0, 0.7)
@@ -604,6 +732,7 @@ def chat_pollinations(pclient: PollinationsClient):
         except Exception as e:
             print(f"Error: {e}")
 
+
 def gen_image_puter(client: PuterClient):
     prompt = safe_input("Image prompt: ").strip()
     if not prompt:
@@ -616,6 +745,7 @@ def gen_image_puter(client: PuterClient):
     except Exception as e:
         print(f"Error: {e}")
 
+
 def gen_image_pollinations(pclient: PollinationsClient):
     prompt = safe_input("Image prompt: ").strip()
     if not prompt:
@@ -627,6 +757,7 @@ def gen_image_pollinations(pclient: PollinationsClient):
         print(f"Saved image to: {os.path.abspath(path)}")
     except Exception as e:
         print(f"Error: {e}")
+
 
 def ocr_puter(client: PuterClient):
     src = safe_input("Image URL or local path for OCR: ").strip()
@@ -643,6 +774,7 @@ def ocr_puter(client: PuterClient):
     except Exception as e:
         print(f"Error: {e}")
 
+
 def tts_puter(client: PuterClient):
     text = safe_input("Text to synthesize: ").strip()
     if not text:
@@ -656,6 +788,7 @@ def tts_puter(client: PuterClient):
         print(f"Saved audio to: {os.path.abspath(out)}")
     except Exception as e:
         print(f"Error: {e}")
+
 
 def main():
     print("== Putergenai+PrimalCore All-in-One CLI ==")
@@ -716,6 +849,7 @@ def main():
             break
         else:
             print("Invalid option. Try again.")
+
 
 if __name__ == "__main__":
     main()
