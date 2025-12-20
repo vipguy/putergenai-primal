@@ -1,0 +1,58 @@
+name: Pre-commit Auto-fix
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  pre-commit:
+    name: 🧹 Auto-fix Code Issues
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🐍 Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: 📦 Install pre-commit
+        run: |
+          pip install pre-commit black isort ruff
+
+      - name: ⚙️ Run pre-commit auto-fixes
+        run: |
+          pre-commit run --all-files || true
+        continue-on-error: true
+
+      - name: 📝 Auto-fix with Black
+        run: |
+          black src/ tests/ || true
+
+      - name: 📐 Auto-fix imports with isort
+        run: |
+          isort src/ tests/ || true
+
+      - name: ⚡ Auto-fix with Ruff
+        run: |
+          ruff check --fix src/ tests/ || true
+
+      - name: 📤 Commit and push fixes
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "style: Auto-fix code formatting and linting issues"
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com
+          commit_author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
