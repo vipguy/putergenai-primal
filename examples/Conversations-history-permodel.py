@@ -29,8 +29,8 @@ except:
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 CONFIG_FILE = Path("puter_config.json")
-HISTORY_FILE = Path("puter_history.json")          # compact prompts/responses
-CONVO_FILE = Path("puter_conversations.json")      # full conversation per model
+HISTORY_FILE = Path("puter_history.json")  # compact prompts/responses
+CONVO_FILE = Path("puter_conversations.json")  # full conversation per model
 
 
 class Config:
@@ -233,7 +233,9 @@ class UltimatePuterClient:
                         )
 
                     # 🔄 AUTO PARSE JSON
-                    if force_json and (content.strip().startswith("{") or content.strip().startswith("[")):
+                    if force_json and (
+                        content.strip().startswith("{") or content.strip().startswith("[")
+                    ):
                         try:
                             parsed = json.loads(content)
                             self.stats[f"{original_model}_json"] += 1
@@ -258,7 +260,11 @@ class UltimatePuterClient:
             attempts += 1
             if model in self.fallback_chain:
                 idx = self.fallback_chain.index(model)
-                model = self.fallback_chain[idx + 1] if idx + 1 < len(self.fallback_chain) else "gpt-4o-mini"
+                model = (
+                    self.fallback_chain[idx + 1]
+                    if idx + 1 < len(self.fallback_chain)
+                    else "gpt-4o-mini"
+                )
             else:
                 model = self.fallback_chain[0]
 
@@ -367,7 +373,11 @@ def json_schema_menu(client):
         messages.append(
             {
                 "role": "assistant",
-                "content": json.dumps(result, ensure_ascii=False) if isinstance(result, (dict, list)) else str(result),
+                "content": (
+                    json.dumps(result, ensure_ascii=False)
+                    if isinstance(result, (dict, list))
+                    else str(result)
+                ),
             }
         )
 
