@@ -30,9 +30,9 @@ except:
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 CONFIG_FILE = Path("puter_config.json")
-HISTORY_FILE = Path("puter_history.json")          # compact prompts/responses
-CONVO_FILE = Path("puter_conversations.json")      # full conversation per model
-SCHEMA_FILE = Path("puter_schemas.json")           # named JSON schemas
+HISTORY_FILE = Path("puter_history.json")  # compact prompts/responses
+CONVO_FILE = Path("puter_conversations.json")  # full conversation per model
+SCHEMA_FILE = Path("puter_schemas.json")  # named JSON schemas
 
 
 class Config:
@@ -370,7 +370,9 @@ class UltimatePuterClient:
                             .get("content", content)
                         )
 
-                    if force_json and (content.strip().startswith("{") or content.strip().startswith("[")):
+                    if force_json and (
+                        content.strip().startswith("{") or content.strip().startswith("[")
+                    ):
                         try:
                             parsed = json.loads(content)
                             self.stats[f"{original_model}_json"] += 1
@@ -387,7 +389,9 @@ class UltimatePuterClient:
                     add_history(last_user, content, original_model)
                     return content
 
-                print(f"[ERROR] HTTP {r.status_code} from API. Attempt {attempts+1}/3, will try fallback.")
+                print(
+                    f"[ERROR] HTTP {r.status_code} from API. Attempt {attempts+1}/3, will try fallback."
+                )
 
             except requests.exceptions.Timeout:
                 print(f"[ERROR] Network timeout. Attempt {attempts+1}/3, will try fallback.")
@@ -399,7 +403,11 @@ class UltimatePuterClient:
             attempts += 1
             if model in self.fallback_chain:
                 idx = self.fallback_chain.index(model)
-                model = self.fallback_chain[idx + 1] if idx + 1 < len(self.fallback_chain) else "gpt-4o-mini"
+                model = (
+                    self.fallback_chain[idx + 1]
+                    if idx + 1 < len(self.fallback_chain)
+                    else "gpt-4o-mini"
+                )
             else:
                 model = self.fallback_chain[0]
 
@@ -440,7 +448,7 @@ def json_schema_menu(client):
     choose_schema()
 
     model = safe_input("Model [gpt-4o-mini]: ").strip() or "gpt-4o-mini"
-    print(f"\nSYS> JSON MODE ACTIVE")
+    print("\nSYS> JSON MODE ACTIVE")
     print(f"SYS> MODEL: {model}")
     print(f"SYS> SCHEMA: {active_schema_name}")
     print_schema_help()
@@ -485,7 +493,11 @@ def json_schema_menu(client):
         messages.append(
             {
                 "role": "assistant",
-                "content": json.dumps(result, ensure_ascii=False) if isinstance(result, (dict, list)) else str(result),
+                "content": (
+                    json.dumps(result, ensure_ascii=False)
+                    if isinstance(result, (dict, list))
+                    else str(result)
+                ),
             }
         )
 
@@ -601,7 +613,10 @@ def chat_menu(client, pclient, config):
     if choice == "1":
         # If default_mode is "json", offer to jump straight into JSON mode.
         if config.default_mode == "json":
-            use_json = safe_input("SYS> Default mode is JSON. Enter JSON schema mode now? (Y/n): ").lower() or "y"
+            use_json = (
+                safe_input("SYS> Default mode is JSON. Enter JSON schema mode now? (Y/n): ").lower()
+                or "y"
+            )
             if use_json == "y":
                 json_schema_menu(client)
                 return
@@ -720,9 +735,13 @@ def main():
                 new_model = safe_input(f"  Default model [{config.default_model}]: ").strip()
                 if new_model:
                     config.default_model = new_model
-                new_temp = safe_input(f"  Default temp [{config.default_temperature:.2f}]: ").strip()
+                new_temp = safe_input(
+                    f"  Default temp [{config.default_temperature:.2f}]: "
+                ).strip()
                 if new_temp:
-                    config.default_temperature = sanitize_float(new_temp, config.default_temperature)
+                    config.default_temperature = sanitize_float(
+                        new_temp, config.default_temperature
+                    )
                 new_mode = safe_input(f"  Default mode [{config.default_mode}]: ").strip().lower()
                 if new_mode in ("normal", "json"):
                     config.default_mode = new_mode
@@ -742,6 +761,7 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("\nSYS> Goodbye.")
+
     def __init__(self):
         self.token = "YOUR-TOK3N-HERE"  # Tok3n
         self.default_model = "gpt-4o-mini"
