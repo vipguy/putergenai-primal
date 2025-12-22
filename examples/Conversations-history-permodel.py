@@ -29,8 +29,8 @@ except:
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 CONFIG_FILE = Path("puter_config.json")
-HISTORY_FILE = Path("puter_history.json")          # compact prompts/responses
-CONVO_FILE = Path("puter_conversations.json")      # full conversation per model
+HISTORY_FILE = Path("puter_history.json")  # compact prompts/responses
+CONVO_FILE = Path("puter_conversations.json")  # full conversation per model
 
 
 class Config:
@@ -233,7 +233,9 @@ class UltimatePuterClient:
                             .get("content", content)
                         )
 
-                    if force_json and (content.strip().startswith("{") or content.strip().startswith("[")):
+                    if force_json and (
+                        content.strip().startswith("{") or content.strip().startswith("[")
+                    ):
                         try:
                             parsed = json.loads(content)
                             self.stats[f"{original_model}_json"] += 1
@@ -251,7 +253,9 @@ class UltimatePuterClient:
                     add_history(last_user, content, original_model)
                     return content
 
-                print(f"[ERROR] HTTP {r.status_code} from API. Attempt {attempts+1}/3, will try fallback.")
+                print(
+                    f"[ERROR] HTTP {r.status_code} from API. Attempt {attempts+1}/3, will try fallback."
+                )
 
             except requests.exceptions.Timeout:
                 print(f"[ERROR] Network timeout. Attempt {attempts+1}/3, will try fallback.")
@@ -263,7 +267,11 @@ class UltimatePuterClient:
             attempts += 1
             if model in self.fallback_chain:
                 idx = self.fallback_chain.index(model)
-                model = self.fallback_chain[idx + 1] if idx + 1 < len(self.fallback_chain) else "gpt-4o-mini"
+                model = (
+                    self.fallback_chain[idx + 1]
+                    if idx + 1 < len(self.fallback_chain)
+                    else "gpt-4o-mini"
+                )
             else:
                 model = self.fallback_chain[0]
 
@@ -384,7 +392,11 @@ def json_schema_menu(client):
         messages.append(
             {
                 "role": "assistant",
-                "content": json.dumps(result, ensure_ascii=False) if isinstance(result, (dict, list)) else str(result),
+                "content": (
+                    json.dumps(result, ensure_ascii=False)
+                    if isinstance(result, (dict, list))
+                    else str(result)
+                ),
             }
         )
 
@@ -620,6 +632,7 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("\nSYS> Goodbye.")
+
     def __init__(self):
         self.token = "YOUR-TOK3N-HERE"  # Tok3n
         self.default_model = "gpt-4o-mini"
