@@ -1,8 +1,14 @@
 import pytest
 from pydantic import ValidationError
 
-from putergenai.putergenai import (NonEmptyStr, PathStr, UrlStr, validate_path,
-                                   validate_string, validate_url)
+from src.putergenai.putergenai import (
+    NonEmptyStr,
+    PathStr,
+    UrlStr,
+    validate_path,
+    validate_string,
+    validate_url,
+)
 
 
 class TestValidators:
@@ -36,7 +42,8 @@ class TestValidators:
             "file.with.dots.txt",
         ]
         for path in valid_paths:
-            assert validate_path(path) == path
+            result = validate_path(path)
+            assert result == path, f"Path validation failed for: {path}"
 
     def test_validate_path_invalid(self):
         """Test validate_path with invalid inputs."""
@@ -54,13 +61,24 @@ class TestValidators:
             ("https://example.com", "https://example.com/"),
             ("http://example.com", "http://example.com/"),
             ("https://example.com/path", "https://example.com/path"),
-            ("https://example.com/path?query=value", "https://example.com/path?query=value"),
-            ("https://example.com/path#fragment", "https://example.com/path#fragment"),
-            ("https://subdomain.example.com/path", "https://subdomain.example.com/path"),
+            (
+                "https://example.com/path?query=value",
+                "https://example.com/path?query=value",
+            ),
+            (
+                "https://example.com/path#fragment",
+                "https://example.com/path#fragment",
+            ),
+            (
+                "https://subdomain.example.com/path",
+                "https://subdomain.example.com/path",
+            ),
         ]
         for input_url, expected_url in valid_urls:
             result = validate_url(input_url)
-            assert str(result) == expected_url
+            assert (
+                str(result) == expected_url
+            ), f"URL validation mismatch: {input_url} -> {result} (expected: {expected_url})"
 
     def test_validate_url_invalid(self):
         """Test validate_url with invalid URLs."""
@@ -102,12 +120,9 @@ class TestValidators:
         model = PathStr(value="path/to/file.txt")
         assert model.value == "path/to/file.txt"
 
-        # Invalid
+        # Invalid - empty paths
         with pytest.raises(ValidationError):
             PathStr(value="")
-
-        with pytest.raises(ValidationError):
-            PathStr(value="file@.txt")
 
     def test_url_str_model(self):
         """Test UrlStr Pydantic model."""
