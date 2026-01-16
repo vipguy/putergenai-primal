@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from src.putergenai.putergenai import (
+from putergenai.putergenai import (
     NonEmptyStr,
     PathStr,
     UrlStr,
