@@ -53,6 +53,8 @@ class TestAIChat:
 
         result = await client.ai_chat(prompt="Hello", options=options)
 
+        # Assertions
+        assert result is not None
         # Verify options were passed
         call_args = mock_client_session.post.call_args
         payload = call_args[1]["json"]
@@ -76,6 +78,8 @@ class TestAIChat:
 
         result = await client.ai_chat(prompt="Hello", options=options)
 
+        # Assertions
+        assert result is not None
         # Verify temperature was forced to 1
         call_args = mock_client_session.post.call_args
         payload = call_args[1]["json"]
@@ -93,6 +97,8 @@ class TestAIChat:
         image_url = "https://example.com/image.jpg"
         result = await client.ai_chat(prompt="Describe this image", image_url=image_url)
 
+        # Assertions
+        assert result is not None
         # Verify image was processed
         call_args = mock_client_session.post.call_args
         payload = call_args[1]["json"]
@@ -116,6 +122,8 @@ class TestAIChat:
         image_urls = ["https://example.com/image1.jpg", "https://example.com/image2.jpg"]
         result = await client.ai_chat(prompt="Compare these images", image_url=image_urls)
 
+        # Assertions
+        assert result is not None
         # Verify images were processed
         call_args = mock_client_session.post.call_args
         payload = call_args[1]["json"]
