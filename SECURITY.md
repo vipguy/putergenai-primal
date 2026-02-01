@@ -8,7 +8,8 @@ We actively provide security fixes for the versions below. Older versions should
 
 | Version        | Supported |
 |----------------|-----------|
-| 3.0.0          | ✅        |
+| 3.5.0          | ✅        |
+| 3.0.0          | ❌        |
 | 2.1.0          | ❌        |
 | 2.x            | ❌        |
 | 0.1.x          | ❌        |
