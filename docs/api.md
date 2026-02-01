@@ -7,6 +7,31 @@ The main entry point is the `PuterClient` class.
 from putergenai import PuterClient
 ```
 
+## Puter.js → putergenai mapping
+
+| Puter.js | putergenai |
+|---|---|
+| `puter.drivers.call()` | `client.drivers_call()` |
+| `puter.ai.chat()` | `client.ai_chat()` |
+| `puter.ai.img2txt()` | `client.ai_img2txt()` |
+| `puter.ai.txt2img()` | `client.ai_txt2img()` |
+| `puter.ai.txt2speech()` | `client.ai_txt2speech()` |
+| `puter.ai.speech2txt()` | `client.ai_speech2txt()` |
+| `puter.ai.speech2speech()` | `client.ai_speech2speech()` |
+| `puter.fs.write()` | `client.fs_write()` |
+| `puter.fs.read()` | `client.fs_read()` |
+| `puter.fs.delete()` | `client.fs_delete()` |
+| `puter.fs.copy()` | `client.fs_copy()` |
+| `puter.fs.move()` | `client.fs_move()` |
+| `puter.fs.mkdir()` | `client.fs_mkdir()` |
+| `puter.fs.readdir()` | `client.fs_readdir()` |
+| `puter.fs.rename()` | `client.fs_rename()` |
+| `puter.fs.stat()` | `client.fs_stat()` |
+| `puter.fs.space()` | `client.fs_space()` |
+| `puter.fs.upload()` | `client.fs_upload()` |
+| `puter.fs.getReadURL()` | `client.fs_get_read_url()` |
+| `puter.kv.*` | `client.kv_*` methods |
+
 ## PuterClient
 
 ### Constructor
@@ -97,6 +122,20 @@ await client.fs_delete(path: str) -> None
 
 Deletes a file or directory at `path`.
 
+Additional filesystem methods:
+
+```python
+await client.fs_mkdir(path: str, options: dict | None = None) -> dict
+await client.fs_readdir(path: str, options: dict | None = None) -> dict
+await client.fs_rename(source: str, destination: str, options: dict | None = None) -> dict
+await client.fs_copy(source: str, destination: str, options: dict | None = None) -> dict
+await client.fs_move(source: str, destination: str, options: dict | None = None) -> dict
+await client.fs_stat(path: str) -> dict
+await client.fs_space() -> dict
+await client.fs_get_read_url(path: str, options: dict | None = None) -> str
+await client.fs_upload(files, destination: str | None = None, options: dict | None = None) -> dict
+```
+
 #### Filesystem example
 
 ```python
@@ -111,6 +150,56 @@ async def main():
         await client.fs_delete("/hello.txt")
 
 asyncio.run(main())
+```
+
+Additional AI helpers:
+
+```python
+await client.ai_list_models(force_refresh: bool = False) -> dict
+await client.ai_list_model_providers(force_refresh: bool = False) -> list[str]
+await client.ai_speech2txt(source, options: dict | None = None, test_mode: bool = False)
+await client.ai_speech2speech(source, options: dict | None = None, test_mode: bool = False)
+await client.ai_txt2vid(prompt: str, options: dict | None = None, test_mode: bool = False) -> dict
+```
+
+### Drivers
+
+Low-level driver calls are available for parity with `puter.drivers.call()`:
+
+```python
+await client.drivers_call(interface: str, driver: str, method: str, args: dict | None = None, stream: bool = False)
+```
+
+### Auth, Apps, Hosting, Workers, Networking (best-effort)
+
+These APIs are implemented as best-effort wrappers around assumed Puter endpoints. If a specific endpoint is not available in your Puter deployment, you may receive HTTP errors from the backend.
+
+```python
+await client.auth_is_signed_in() -> bool
+await client.auth_get_user() -> dict
+await client.auth_sign_out() -> dict
+await client.auth_get_monthly_usage() -> dict
+await client.auth_get_detailed_app_usage() -> dict
+
+await client.apps_create(options: dict) -> dict
+await client.apps_get(app_id: str) -> dict
+await client.apps_list() -> dict
+await client.apps_update(app_id: str, options: dict) -> dict
+await client.apps_delete(app_id: str) -> dict
+
+await client.hosting_create(options: dict) -> dict
+await client.hosting_get(subdomain: str) -> dict
+await client.hosting_list() -> dict
+await client.hosting_update(subdomain: str, options: dict) -> dict
+await client.hosting_delete(subdomain: str) -> dict
+
+await client.workers_create(options: dict) -> dict
+await client.workers_get(worker_name: str) -> dict
+await client.workers_list() -> dict
+await client.workers_delete(worker_name: str) -> dict
+await client.workers_exec(worker_url: str, method: str = "GET", return_json: bool = False)
+
+await client.net_fetch(url: str, method: str = "GET", return_json: bool = False, include_auth: bool = False)
 ```
 
 ### Key-Value Store
@@ -140,6 +229,20 @@ await client.kv_list() -> list[str]
 ```
 
 Returns a list of all keys in your KV store.
+
+Additional KV methods:
+
+```python
+await client.kv_list(pattern: str = "*", return_values: bool = False, limit: int | None = None, cursor: str | None = None)
+await client.kv_add(key: str, value) -> Any
+await client.kv_incr(key: str, value) -> Any
+await client.kv_decr(key: str, value) -> Any
+await client.kv_update(key: str, value) -> Any
+await client.kv_remove(key: str, *paths: str) -> Any
+await client.kv_expire(key: str, seconds: int | float) -> dict
+await client.kv_expire_at(key: str, timestamp) -> dict
+await client.kv_flush(pattern: str = "*") -> dict
+```
 
 #### KV Example
 
