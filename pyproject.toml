@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "putergenai"
-version = "2.1.0"
+version = "3.0.0"
 authors = [
     { name = "Nerve11", email = "putergenai@outlook.com" },
     { name = "BubblesTheDev", email = "bubblesthedev@fnbubbles420.org" },
@@ -41,6 +41,9 @@ dependencies = [
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
 ]
+
+[project.scripts]
+puter = "putergenai.cli:main"
 
 [project.urls]
 "Homepage" = "https://github.com/Nerve11/putergenai"
