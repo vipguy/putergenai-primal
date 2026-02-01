@@ -1,7 +1,7 @@
 # Installation
 
 ## Requirements
-- Python 3.9 or higher
+- Python 3.11 or higher
 - A Puter.com account and API access token
 - Recommended: virtual environment (`venv`, `virtualenv`, or similar)
 
