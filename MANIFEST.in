@@ -1,0 +1,19 @@
+include README.md
+include LICENSE
+include pyproject.toml
+
+recursive-include src *.py
+recursive-include docs *.md
+
+global-exclude *.pyc
+global-exclude __pycache__/*
+
+exclude .env
+exclude .env.*
+exclude .env.example
+recursive-exclude .venv *
+recursive-exclude htmlcov *
+recursive-exclude .pytest_cache *
+exclude coverage.xml
+exclude .coveragerc
+
