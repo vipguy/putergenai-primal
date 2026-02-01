@@ -19,6 +19,25 @@ Verify that the package is available:
 python -m pip show putergenai
 ```
 
+## CLI Tool
+
+The package includes a command-line interface (CLI) for quick interaction with Puter.
+
+```bash
+# Login
+puter login
+
+# Start a chat
+puter chat --model gpt-4o
+
+# List available models
+puter models
+
+# Manage Key-Value store
+puter kv set mykey "value"
+puter kv get mykey
+```
+
 ## Installing from source
 If you want to track the latest changes from the repository:
 
