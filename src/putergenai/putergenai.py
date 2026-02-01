@@ -22,7 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-__version__ = "2.2.0"
+__version__ = "3.0.0"
 
 
 class NonEmptyStr(BaseModel):
@@ -186,6 +186,14 @@ class PuterClient:
             # DeepSeek models
             "deepseek-chat": "deepseek",
             "deepseek-reasoner": "deepseek",
+            "deepseek/deepseek-v3.2": "deepseek",
+            "deepseek/deepseek-v3.2-speciale": "deepseek",
+            # MiniMax models
+            "minimax/minimax-m2.1": "minimax",
+            "minimax/minimax-m2-her": "minimax",
+            "minimax/minimax-m2": "minimax",
+            "minimax/minimax-m1": "minimax",
+            "minimax/minimax-01": "minimax",
             # Google Gemini models
             "gemini-1.5-flash": "google",
             "gemini-2.0-flash": "google",
@@ -1108,6 +1116,97 @@ class PuterClient:
                 logger.info(f"File deleted successfully at {path}")
         except aiohttp.ClientError as e:
             logger.warning(f"fs_delete error: {e}")
+            raise
+
+    async def kv_set(self, key: str, value: Any) -> Any:
+        """
+        Set a value in the Key-Value store.
+        """
+        key = validate_string(key)
+        payload = {"key": key, "value": value}
+        headers = self._get_auth_headers()
+        session = await self._get_session()
+
+        try:
+            async with session.post(
+                f"{self.api_base}/kv/set",
+                json=payload,
+                headers=headers,
+            ) as response:
+                response.raise_for_status()
+                data = await response.json()
+                if not data.get("success", True):
+                     raise ValueError(f"KV set failed: {data.get('error')}")
+                logger.info(f"KV set successful for key: {key}")
+                return data
+        except aiohttp.ClientError as e:
+            logger.warning(f"kv_set error: {e}")
+            raise
+
+    async def kv_get(self, key: str) -> Any:
+        """
+        Get a value from the Key-Value store.
+        """
+        key = validate_string(key)
+        payload = {"key": key}
+        headers = self._get_auth_headers()
+        session = await self._get_session()
+
+        try:
+            async with session.post(
+                f"{self.api_base}/kv/get",
+                json=payload,
+                headers=headers,
+            ) as response:
+                response.raise_for_status()
+                data = await response.json()
+                if not data.get("success", True):
+                     return None
+                return data.get("value")
+        except aiohttp.ClientError as e:
+            logger.warning(f"kv_get error: {e}")
+            raise
+
+    async def kv_delete(self, key: str) -> bool:
+        """
+        Delete a value from the Key-Value store.
+        """
+        key = validate_string(key)
+        payload = {"key": key}
+        headers = self._get_auth_headers()
+        session = await self._get_session()
+
+        try:
+            async with session.post(
+                f"{self.api_base}/kv/delete",
+                json=payload,
+                headers=headers,
+            ) as response:
+                response.raise_for_status()
+                data = await response.json()
+                return data.get("success", True)
+        except aiohttp.ClientError as e:
+            logger.warning(f"kv_delete error: {e}")
+            raise
+
+    async def kv_list(self) -> List[str]:
+        """
+        List all keys in the Key-Value store.
+        """
+        headers = self._get_auth_headers()
+        session = await self._get_session()
+
+        try:
+            async with session.post(
+                f"{self.api_base}/kv/list",
+                json={},
+                headers=headers,
+            ) as response:
+                response.raise_for_status()
+                data = await response.json()
+                return data.get("keys", [])
+        except aiohttp.ClientError as e:
+            logger.warning(f"kv_list error: {e}")
             raise
 
     async def ai_chat(
