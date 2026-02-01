@@ -113,6 +113,56 @@ async def main():
 asyncio.run(main())
 ```
 
+### Key-Value Store
+
+The KV store allows you to persist small pieces of data (strings, numbers, JSON) in the cloud.
+
+```python
+await client.kv_set(key: str, value: Any) -> dict
+```
+
+Sets a value for the given key. Returns the API response.
+
+```python
+await client.kv_get(key: str) -> Any
+```
+
+Retrieves the value for the given key. Returns `None` if the key does not exist.
+
+```python
+await client.kv_delete(key: str) -> bool
+```
+
+Deletes the key-value pair. Returns `True` if successful.
+
+```python
+await client.kv_list() -> list[str]
+```
+
+Returns a list of all keys in your KV store.
+
+#### KV Example
+
+```python
+import asyncio
+from putergenai import PuterClient
+
+async def main():
+    async with PuterClient(token="your_token_here") as client:
+        # Set a value
+        await client.kv_set("user_pref", "dark_mode")
+        
+        # Get a value
+        val = await client.kv_get("user_pref")
+        print(f"Preference: {val}")
+        
+        # List keys
+        keys = await client.kv_list()
+        print(f"Keys: {keys}")
+
+asyncio.run(main())
+```
+
 ### Chat completions
 
 ```python
