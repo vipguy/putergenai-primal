@@ -22,7 +22,10 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-__version__ = "2.2.0"
+__version__ = "3.5.0"
+
+KV_MAX_KEY_SIZE: Optional[int] = None
+KV_MAX_VALUE_SIZE: Optional[int] = None
 
 
 class NonEmptyStr(BaseModel):
@@ -32,7 +35,7 @@ class NonEmptyStr(BaseModel):
 
 class PathStr(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
-    value: str = Field(..., min_length=1, pattern=r"^[\w\-\.\/]+$")
+    value: str = Field(..., min_length=1, pattern=r"^[\w\-\.\~\/ \(\)]+$")
 
 
 def validate_string(s: str) -> str:
@@ -186,6 +189,14 @@ class PuterClient:
             # DeepSeek models
             "deepseek-chat": "deepseek",
             "deepseek-reasoner": "deepseek",
+            "deepseek/deepseek-v3.2": "deepseek",
+            "deepseek/deepseek-v3.2-speciale": "deepseek",
+            # MiniMax models
+            "minimax/minimax-m2.1": "minimax",
+            "minimax/minimax-m2-her": "minimax",
+            "minimax/minimax-m2": "minimax",
+            "minimax/minimax-m1": "minimax",
+            "minimax/minimax-01": "minimax",
             # Google Gemini models
             "gemini-1.5-flash": "google",
             "gemini-2.0-flash": "google",
@@ -1030,6 +1041,214 @@ class PuterClient:
             logger.warning(f"Login error: {e}")
             raise ValueError(f"Login error: {e}")
 
+    async def auth_is_signed_in(self) -> bool:
+        headers = self._get_auth_headers()
+        data = await self._request_json(
+            "GET",
+            f"{self.api_base}/auth/isSignedIn",
+            headers=headers,
+        )
+        signed_in = data.get("signedIn") if isinstance(data, dict) else None
+        return bool(signed_in)
+
+    async def auth_get_user(self) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "GET",
+            f"{self.api_base}/auth/getUser",
+            headers=headers,
+        )
+
+    async def auth_sign_out(self) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/auth/signOut",
+            headers=headers,
+            json_body={},
+        )
+
+    async def auth_get_monthly_usage(self) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "GET",
+            f"{self.api_base}/auth/getMonthlyUsage",
+            headers=headers,
+        )
+
+    async def auth_get_detailed_app_usage(self) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "GET",
+            f"{self.api_base}/auth/getDetailedAppUsage",
+            headers=headers,
+        )
+
+    async def apps_create(self, options: Dict[str, Any]) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/apps/create",
+            headers=headers,
+            json_body=options,
+        )
+
+    async def apps_get(self, app_id: str) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "GET",
+            f"{self.api_base}/apps/get",
+            headers=headers,
+            params={"app_id": validate_string(app_id)},
+        )
+
+    async def apps_list(self) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "GET",
+            f"{self.api_base}/apps/list",
+            headers=headers,
+        )
+
+    async def apps_update(self, app_id: str, options: Dict[str, Any]) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        payload = dict(options)
+        payload["app_id"] = validate_string(app_id)
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/apps/update",
+            headers=headers,
+            json_body=payload,
+        )
+
+    async def apps_delete(self, app_id: str) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/apps/delete",
+            headers=headers,
+            json_body={"app_id": validate_string(app_id)},
+        )
+
+    async def hosting_create(self, options: Dict[str, Any]) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/hosting/create",
+            headers=headers,
+            json_body=options,
+        )
+
+    async def hosting_get(self, subdomain: str) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "GET",
+            f"{self.api_base}/hosting/get",
+            headers=headers,
+            params={"subdomain": validate_string(subdomain)},
+        )
+
+    async def hosting_list(self) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "GET",
+            f"{self.api_base}/hosting/list",
+            headers=headers,
+        )
+
+    async def hosting_update(self, subdomain: str, options: Dict[str, Any]) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        payload = dict(options)
+        payload["subdomain"] = validate_string(subdomain)
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/hosting/update",
+            headers=headers,
+            json_body=payload,
+        )
+
+    async def hosting_delete(self, subdomain: str) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/hosting/delete",
+            headers=headers,
+            json_body={"subdomain": validate_string(subdomain)},
+        )
+
+    async def workers_create(self, options: Dict[str, Any]) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/workers/create",
+            headers=headers,
+            json_body=options,
+        )
+
+    async def workers_get(self, worker_name: str) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "GET",
+            f"{self.api_base}/workers/get",
+            headers=headers,
+            params={"workerName": validate_string(worker_name)},
+        )
+
+    async def workers_list(self) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "GET",
+            f"{self.api_base}/workers/list",
+            headers=headers,
+        )
+
+    async def workers_delete(self, worker_name: str) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/workers/delete",
+            headers=headers,
+            json_body={"workerName": validate_string(worker_name)},
+        )
+
+    async def workers_exec(
+        self,
+        worker_url: str,
+        *,
+        method: str = "GET",
+        headers: Optional[Dict[str, str]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        json_body: Any = None,
+        data: Any = None,
+        return_json: bool = False,
+    ) -> Union[bytes, Dict[str, Any]]:
+        url = validate_string(worker_url)
+        hdrs = dict(headers or {})
+        hdrs.update(self._get_auth_headers())
+        if return_json:
+            return await self._request_json(method, url, headers=hdrs, params=params, json_body=json_body, data=data)
+        return await self._request_bytes(method, url, headers=hdrs, params=params, json_body=json_body, data=data)
+
+    async def net_fetch(
+        self,
+        url: str,
+        *,
+        method: str = "GET",
+        headers: Optional[Dict[str, str]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        json_body: Any = None,
+        data: Any = None,
+        return_json: bool = False,
+        include_auth: bool = False,
+    ) -> Union[bytes, Dict[str, Any]]:
+        target = validate_string(url)
+        hdrs = dict(headers or {})
+        if include_auth:
+            hdrs.update(self._get_auth_headers())
+        if return_json:
+            return await self._request_json(method, target, headers=hdrs, params=params, json_body=json_body, data=data)
+        return await self._request_bytes(method, target, headers=hdrs, params=params, json_body=json_body, data=data)
+
     def _get_auth_headers(self) -> Dict[str, str]:
         if not self.token:
             logger.error("Authentication error: No token available")
@@ -1039,7 +1258,121 @@ class PuterClient:
             "Content-Type": "application/json",
         }
 
-    async def fs_write(self, path: str, content: Union[str, bytes, Any]) -> Dict[str, Any]:
+    async def _request_json(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Optional[Dict[str, str]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        json_body: Any = None,
+        data: Any = None,
+        raise_on_api_error: bool = True,
+    ) -> Dict[str, Any]:
+        session = await self._get_session()
+        request_headers = headers or {}
+        try:
+            async with session.request(
+                method,
+                url,
+                headers=request_headers,
+                params=params,
+                json=json_body,
+                data=data,
+            ) as response:
+                response.raise_for_status()
+                parsed: Any = await response.json()
+                if raise_on_api_error and isinstance(parsed, dict) and parsed.get("success") is False:
+                    error_data = parsed.get("error", {}) if isinstance(parsed.get("error"), dict) else {}
+                    msg = error_data.get("message") or parsed.get("message") or "Unknown API error"
+                    code = error_data.get("code")
+                    raise ValueError(f"{msg}" + (f" (code: {code})" if code else ""))
+                if not isinstance(parsed, dict):
+                    raise ValueError(f"Unexpected JSON response type: {type(parsed)}")
+                return parsed
+        except aiohttp.ClientError as e:
+            logger.warning(f"HTTP request failed: {method} {url}: {e}")
+            raise
+
+    async def _request_bytes(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Optional[Dict[str, str]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        json_body: Any = None,
+        data: Any = None,
+    ) -> bytes:
+        session = await self._get_session()
+        request_headers = headers or {}
+        try:
+            async with session.request(
+                method,
+                url,
+                headers=request_headers,
+                params=params,
+                json=json_body,
+                data=data,
+            ) as response:
+                response.raise_for_status()
+                return await response.read()
+        except aiohttp.ClientError as e:
+            logger.warning(f"HTTP request failed: {method} {url}: {e}")
+            raise
+
+    async def drivers_call(
+        self,
+        interface: str,
+        driver: str,
+        method: str,
+        args: Optional[Dict[str, Any]] = None,
+        *,
+        stream: bool = False,
+        test_mode: bool = False,
+    ) -> Union[Dict[str, Any], AsyncGenerator[bytes, None]]:
+        interface = validate_string(interface)
+        driver = validate_string(driver)
+        method = validate_string(method)
+        payload = {
+            "interface": interface,
+            "driver": driver,
+            "method": method,
+            "args": args or {},
+            "stream": stream,
+            "test_mode": test_mode,
+        }
+        headers = self._get_auth_headers()
+        session = await self._get_session()
+
+        if not stream:
+            return await self._request_json(
+                "POST",
+                f"{self.api_base}/drivers/call",
+                headers=headers,
+                json_body=payload,
+                raise_on_api_error=False,
+            )
+
+        async def stream_generator() -> AsyncGenerator[bytes, None]:
+            async with session.post(
+                f"{self.api_base}/drivers/call",
+                json=payload,
+                headers=headers,
+            ) as response:
+                response.raise_for_status()
+                async for chunk in response.content:
+                    if chunk:
+                        yield chunk
+
+        return stream_generator()
+
+    async def fs_write(
+        self,
+        path: str,
+        content: Union[str, bytes, Any],
+        options: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
         Write content to a file in Puter FS asynchronously.
         """
@@ -1053,22 +1386,21 @@ class PuterClient:
         if not isinstance(content, bytes) and not hasattr(content, "read"):
             logger.warning("Invalid content type for fs_write")
             raise ValueError("Content must be str, bytes, or file-like object.")
+        params: Dict[str, Any] = {"path": path}
+        if options:
+            for k in ("overwrite", "dedupeName", "createMissingParents"):
+                if k in options:
+                    params[k] = options[k]
 
-        session = await self._get_session()
-        try:
-            async with session.post(
-                f"{self.api_base}/write",
-                params={"path": path},
-                data=content,
-                headers=headers,
-            ) as response:
-                response.raise_for_status()
-                data = await response.json()
-                logger.info(f"File written successfully at {path}")
-                return data
-        except aiohttp.ClientError as e:
-            logger.warning(f"fs_write error: {e}")
-            raise
+        data = await self._request_json(
+            "POST",
+            f"{self.api_base}/write",
+            headers=headers,
+            params=params,
+            data=content,
+        )
+        logger.info(f"File written successfully at {path}")
+        return data
 
     async def fs_read(self, path: str) -> bytes:
         """
@@ -1076,20 +1408,14 @@ class PuterClient:
         """
         path = validate_path(path)
         headers = self._get_auth_headers()
-        session = await self._get_session()
-        try:
-            async with session.get(
-                f"{self.api_base}/read",
-                params={"path": path},
-                headers=headers,
-            ) as response:
-                response.raise_for_status()
-                content = await response.read()
-                logger.info(f"File read successfully from {path}")
-                return content
-        except aiohttp.ClientError as e:
-            logger.warning(f"fs_read error: {e}")
-            raise
+        content = await self._request_bytes(
+            "GET",
+            f"{self.api_base}/read",
+            headers=headers,
+            params={"path": path},
+        )
+        logger.info(f"File read successfully from {path}")
+        return content
 
     async def fs_delete(self, path: str) -> None:
         """
@@ -1097,18 +1423,311 @@ class PuterClient:
         """
         path = validate_path(path)
         headers = self._get_auth_headers()
-        session = await self._get_session()
-        try:
-            async with session.post(
-                f"{self.api_base}/delete",
-                params={"path": path},
-                headers=headers,
-            ) as response:
-                response.raise_for_status()
-                logger.info(f"File deleted successfully at {path}")
-        except aiohttp.ClientError as e:
-            logger.warning(f"fs_delete error: {e}")
-            raise
+        await self._request_json(
+            "POST",
+            f"{self.api_base}/delete",
+            headers=headers,
+            params={"path": path},
+            json_body={},
+        )
+        logger.info(f"File deleted successfully at {path}")
+
+    async def fs_mkdir(self, path: str, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        path = validate_path(path)
+        headers = self._get_auth_headers()
+        payload = {"path": path}
+        if options:
+            payload.update(options)
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/mkdir",
+            headers=headers,
+            json_body=payload,
+        )
+
+    async def fs_readdir(self, path: str, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        path = validate_path(path)
+        headers = self._get_auth_headers()
+        payload = {"path": path}
+        if options:
+            payload.update(options)
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/readdir",
+            headers=headers,
+            json_body=payload,
+        )
+
+    async def fs_rename(
+        self, source: str, destination: str, options: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        source = validate_path(source)
+        destination = validate_path(destination)
+        headers = self._get_auth_headers()
+        payload = {"source": source, "destination": destination}
+        if options:
+            payload.update(options)
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/rename",
+            headers=headers,
+            json_body=payload,
+        )
+
+    async def fs_copy(
+        self, source: str, destination: str, options: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        source = validate_path(source)
+        destination = validate_path(destination)
+        headers = self._get_auth_headers()
+        payload = {"source": source, "destination": destination}
+        if options:
+            payload.update(options)
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/copy",
+            headers=headers,
+            json_body=payload,
+        )
+
+    async def fs_move(
+        self, source: str, destination: str, options: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        source = validate_path(source)
+        destination = validate_path(destination)
+        headers = self._get_auth_headers()
+        payload = {"source": source, "destination": destination}
+        if options:
+            payload.update(options)
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/move",
+            headers=headers,
+            json_body=payload,
+        )
+
+    async def fs_stat(self, path: str) -> Dict[str, Any]:
+        path = validate_path(path)
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "GET",
+            f"{self.api_base}/stat",
+            headers=headers,
+            params={"path": path},
+        )
+
+    async def fs_space(self) -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "GET",
+            f"{self.api_base}/space",
+            headers=headers,
+        )
+
+    async def fs_get_read_url(self, path: str, options: Optional[Dict[str, Any]] = None) -> str:
+        path = validate_path(path)
+        headers = self._get_auth_headers()
+        params: Dict[str, Any] = {"path": path}
+        if options:
+            params.update(options)
+        data = await self._request_json(
+            "GET",
+            f"{self.api_base}/getReadURL",
+            headers=headers,
+            params=params,
+        )
+        url = data.get("url") or data.get("read_url") or data.get("readURL")
+        if not isinstance(url, str) or not url:
+            raise ValueError(f"Unexpected response format: {data}")
+        return url
+
+    async def fs_upload(
+        self,
+        files: Union[Any, List[Any]],
+        destination: Optional[str] = None,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        if not isinstance(files, list):
+            files = [files]
+        form = aiohttp.FormData()
+        for idx, f in enumerate(files):
+            form.add_field(f"file{idx}", f)
+        if destination is not None:
+            form.add_field("destination", validate_path(destination))
+        if options:
+            for k, v in options.items():
+                form.add_field(k, str(v).lower() if isinstance(v, bool) else str(v))
+        headers = self._get_auth_headers()
+        headers.pop("Content-Type", None)
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/upload",
+            headers=headers,
+            data=form,
+        )
+
+    async def kv_set(self, key: str, value: Any) -> Any:
+        """
+        Set a value in the Key-Value store.
+        """
+        key = validate_string(key)
+        payload = {"key": key, "value": value}
+        headers = self._get_auth_headers()
+        data = await self._request_json(
+            "POST",
+            f"{self.api_base}/kv/set",
+            headers=headers,
+            json_body=payload,
+        )
+        logger.info(f"KV set successful for key: {key}")
+        return data
+
+    async def kv_get(self, key: str) -> Any:
+        """
+        Get a value from the Key-Value store.
+        """
+        key = validate_string(key)
+        payload = {"key": key}
+        headers = self._get_auth_headers()
+        data = await self._request_json(
+            "POST",
+            f"{self.api_base}/kv/get",
+            headers=headers,
+            json_body=payload,
+            raise_on_api_error=False,
+        )
+        if data.get("success", True) is False:
+            return None
+        return data.get("value")
+
+    async def kv_delete(self, key: str) -> bool:
+        """
+        Delete a value from the Key-Value store.
+        """
+        key = validate_string(key)
+        payload = {"key": key}
+        headers = self._get_auth_headers()
+        data = await self._request_json(
+            "POST",
+            f"{self.api_base}/kv/delete",
+            headers=headers,
+            json_body=payload,
+        )
+        return data.get("success", True)
+
+    async def kv_list(
+        self,
+        pattern: str = "*",
+        return_values: bool = False,
+        limit: Optional[int] = None,
+        cursor: Optional[str] = None,
+    ) -> Union[List[str], List[Dict[str, Any]], Dict[str, Any]]:
+        headers = self._get_auth_headers()
+        payload: Dict[str, Any] = {"pattern": pattern, "returnValues": return_values}
+        if limit is not None:
+            payload["limit"] = int(limit)
+        if cursor is not None:
+            payload["cursor"] = cursor
+        data = await self._request_json(
+            "POST",
+            f"{self.api_base}/kv/list",
+            headers=headers,
+            json_body=payload,
+        )
+        if "items" in data and (limit is not None or cursor is not None):
+            return data
+        if return_values:
+            return data.get("items") or data.get("pairs") or data.get("kvpairs") or []
+        return data.get("keys", [])
+
+    async def kv_add(self, key: str, value: Any) -> Any:
+        key = validate_string(key)
+        headers = self._get_auth_headers()
+        data = await self._request_json(
+            "POST",
+            f"{self.api_base}/kv/add",
+            headers=headers,
+            json_body={"key": key, "value": value},
+        )
+        return data.get("value", data.get("result", data))
+
+    async def kv_incr(self, key: str, value: Any) -> Any:
+        key = validate_string(key)
+        headers = self._get_auth_headers()
+        data = await self._request_json(
+            "POST",
+            f"{self.api_base}/kv/incr",
+            headers=headers,
+            json_body={"key": key, "value": value},
+        )
+        return data.get("value", data.get("result", data))
+
+    async def kv_decr(self, key: str, value: Any) -> Any:
+        key = validate_string(key)
+        headers = self._get_auth_headers()
+        data = await self._request_json(
+            "POST",
+            f"{self.api_base}/kv/decr",
+            headers=headers,
+            json_body={"key": key, "value": value},
+        )
+        return data.get("value", data.get("result", data))
+
+    async def kv_update(self, key: str, value: Any) -> Any:
+        key = validate_string(key)
+        headers = self._get_auth_headers()
+        data = await self._request_json(
+            "POST",
+            f"{self.api_base}/kv/update",
+            headers=headers,
+            json_body={"key": key, "value": value},
+        )
+        return data.get("value", data.get("result", data))
+
+    async def kv_remove(self, key: str, *paths: str) -> Any:
+        key = validate_string(key)
+        cleaned_paths = [validate_string(p) for p in paths if p is not None]
+        headers = self._get_auth_headers()
+        data = await self._request_json(
+            "POST",
+            f"{self.api_base}/kv/remove",
+            headers=headers,
+            json_body={"key": key, "paths": cleaned_paths},
+        )
+        return data.get("value", data.get("result", data))
+
+    async def kv_expire(self, key: str, seconds: Union[int, float]) -> Dict[str, Any]:
+        key = validate_string(key)
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/kv/expire",
+            headers=headers,
+            json_body={"key": key, "seconds": seconds},
+        )
+
+    async def kv_expire_at(self, key: str, timestamp: Union[int, float, str, datetime]) -> Dict[str, Any]:
+        key = validate_string(key)
+        if isinstance(timestamp, datetime):
+            ts_value: Any = timestamp.isoformat()
+        else:
+            ts_value = timestamp
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/kv/expireAt",
+            headers=headers,
+            json_body={"key": key, "timestamp": ts_value},
+        )
+
+    async def kv_flush(self, pattern: str = "*") -> Dict[str, Any]:
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/kv/flush",
+            headers=headers,
+            json_body={"pattern": pattern},
+        )
 
     async def ai_chat(
         self,
@@ -1147,8 +1766,11 @@ class PuterClient:
                         [{"type": "text", "text": content}] if isinstance(content, str) else content
                     )
                     for url in image_url:
-                        safe_url = validate_url(url)
-                        content_parts.append({"type": "image_url", "image_url": {"url": safe_url}})
+                        if isinstance(url, str) and url.startswith(("http://", "https://")):
+                            safe_url = validate_url(url)
+                            content_parts.append({"type": "image_url", "image_url": {"url": safe_url}})
+                        else:
+                            content_parts.append({"type": "file", "puter_path": str(url)})
                     content = content_parts
                 messages.append({"role": "user", "content": content})
 
@@ -1161,17 +1783,13 @@ class PuterClient:
             "tools": options.get("tools"),
             "testMode": test_mode,
         }
-        payload = {
-            "interface": "puter-chat-completion",
-            "driver": driver,
-            "method": "complete",
-            "args": args,
-            "stream": stream,
-            "test_mode": test_mode,
-        }
-
-        headers = self._get_auth_headers()
-        session = await self._get_session()
+        reserved_keys = {"model", "stream", "max_tokens", "temperature", "tools"}
+        for k, v in options.items():
+            if k in reserved_keys:
+                continue
+            if v is None:
+                continue
+            args[k] = v
 
         def check_used_model(data: Dict[str, Any], requested_model: str, strict: bool) -> str:
             used_model = None
@@ -1288,46 +1906,52 @@ class PuterClient:
                 raise ValueError(f"AI chat error: {error_msg}")
 
             if stream:
-                response = await session.post(
-                    f"{self.api_base}/drivers/call",
-                    json=payload,
-                    headers=headers,
+                raw_stream = await self.drivers_call(
+                    "puter-chat-completion",
+                    driver,
+                    "complete",
+                    args=args,
+                    stream=True,
+                    test_mode=test_mode,
                 )
-                response.raise_for_status()
+                if not hasattr(raw_stream, "__aiter__"):
+                    raise ValueError("Streaming driver call did not return a generator")
 
                 async def async_generator():
-                    try:
-                        async for line in response.content:
+                    buffer = b""
+                    async for chunk in raw_stream:
+                        buffer += chunk
+                        while b"\n" in buffer:
+                            line, buffer = buffer.split(b"\n", 1)
                             line = line.strip()
                             if not line:
                                 continue
-                            try:
-                                processed = process_line(line, model, strict_model)
-                                if processed:
-                                    yield processed
-                            except ValueError as e:
-                                raise e
-                    except Exception as e:
-                        response.close()
-                        raise e
+                            processed = process_line(line, model, strict_model)
+                            if processed:
+                                yield processed
+                    tail = buffer.strip()
+                    if tail:
+                        processed = process_line(tail, model, strict_model)
+                        if processed:
+                            yield processed
 
                 return async_generator()
 
             else:
-                async with session.post(
-                    f"{self.api_base}/drivers/call",
-                    json=payload,
-                    headers=headers,
-                ) as response:
-                    response.raise_for_status()
-                    result = await response.json()
+                result = await self.drivers_call(
+                    "puter-chat-completion",
+                    driver,
+                    "complete",
+                    args=args,
+                    stream=False,
+                    test_mode=test_mode,
+                )
+                if not result.get("success", True):
+                    err = result.get("error", {})
+                    await handle_error(err.get("message"), err.get("code"))
 
-                    if not result.get("success", True):
-                        err = result.get("error", {})
-                        await handle_error(err.get("message"), err.get("code"))
-
-                    used_model = check_used_model(result, model, strict_model)
-                    return {"response": result, "used_model": used_model}
+                used_model = check_used_model(result, model, strict_model)
+                return {"response": result, "used_model": used_model}
 
         except aiohttp.ClientError as e:
             logger.error(f"ai_chat request failed: {e}")
@@ -1337,35 +1961,31 @@ class PuterClient:
         """
         Image to text (OCR) asynchronously.
         """
-        headers = self._get_auth_headers()
-        session = await self._get_session()
-
         try:
             if isinstance(image, str):
                 safe_url = validate_url(image)
                 payload = {"image_url": safe_url, "testMode": test_mode}
-                async with session.post(
+                headers = self._get_auth_headers()
+                data = await self._request_json(
+                    "POST",
                     f"{self.api_base}/ai/img2txt",
-                    json=payload,
                     headers=headers,
-                ) as response:
-                    response.raise_for_status()
-                    data = await response.json()
-                    return data.get("text")
+                    json_body=payload,
+                )
+                return data.get("text")
             else:
                 data = aiohttp.FormData()
                 data.add_field("testMode", str(test_mode).lower())
                 data.add_field("image", image)
+                headers = self._get_auth_headers()
                 headers.pop("Content-Type", None)
-
-                async with session.post(
+                parsed = await self._request_json(
+                    "POST",
                     f"{self.api_base}/ai/img2txt",
-                    data=data,
                     headers=headers,
-                ) as response:
-                    response.raise_for_status()
-                    data = await response.json()
-                    return data.get("text")
+                    data=data,
+                )
+                return parsed.get("text")
         except aiohttp.ClientError as e:
             logger.warning(f"ai_img2txt error: {e}")
             raise
@@ -1376,28 +1996,19 @@ class PuterClient:
         """
         Text to image using Puter's driver API asynchronously.
         """
-        payload = {
-            "interface": "puter-image-generation",
-            "driver": model,
-            "method": "generate",
-            "args": {"prompt": prompt, "testMode": test_mode},
-        }
-        headers = self._get_auth_headers()
-        session = await self._get_session()
-
         try:
-            async with session.post(
-                f"{self.api_base}/drivers/call", json=payload, headers=headers
-            ) as response:
-                response.raise_for_status()
-                data = await response.json()
-
-                if "result" in data and "image_url" in data["result"]:
-                    return data["result"]["image_url"]
-                elif "result" in data and isinstance(data["result"], dict):
-                    return data["result"].get("url") or data["result"].get("data")
-                else:
-                    raise ValueError(f"Unexpected response format: {data}")
+            data = await self.drivers_call(
+                "puter-image-generation",
+                model,
+                "generate",
+                args={"prompt": prompt, "testMode": test_mode},
+                test_mode=test_mode,
+            )
+            if "result" in data and "image_url" in data["result"]:
+                return data["result"]["image_url"]
+            if "result" in data and isinstance(data["result"], dict):
+                return data["result"].get("url") or data["result"].get("data")
+            raise ValueError(f"Unexpected response format: {data}")
         except aiohttp.ClientError as e:
             logger.warning(f"ai_txt2img error: {e}")
             raise
@@ -1410,17 +2021,120 @@ class PuterClient:
             options = {}
         payload = {"text": text, "testMode": options.get("testMode", False)}
         headers = self._get_auth_headers()
-        session = await self._get_session()
+        audio = await self._request_bytes(
+            "POST",
+            f"{self.api_base}/ai/txt2speech",
+            headers=headers,
+            json_body=payload,
+        )
+        logger.info("ai_txt2speech request successful")
+        return audio
 
-        try:
-            async with session.post(
-                f"{self.api_base}/ai/txt2speech",
-                json=payload,
+    async def ai_list_models(self, force_refresh: bool = False) -> Dict[str, Any]:
+        return await self.get_available_models(force_refresh=force_refresh)
+
+    async def ai_list_model_providers(self, force_refresh: bool = False) -> List[str]:
+        models_data = await self.get_available_models(force_refresh=force_refresh)
+        providers: set[str] = set()
+        for model_item in models_data.get("models", []):
+            if isinstance(model_item, dict):
+                provider = model_item.get("provider")
+                if isinstance(provider, str) and provider:
+                    providers.add(provider)
+        return sorted(providers)
+
+    async def ai_speech2txt(
+        self,
+        source: Union[str, Any],
+        options: Optional[Dict[str, Any]] = None,
+        test_mode: bool = False,
+    ) -> Union[str, Dict[str, Any]]:
+        if options is None:
+            options = {}
+        payload: Dict[str, Any] = dict(options)
+        payload["testMode"] = payload.get("testMode", test_mode)
+
+        if isinstance(source, str):
+            if source.startswith(("http://", "https://", "data:")):
+                payload.setdefault("audio", source)
+            else:
+                payload.setdefault("audio", source)
+        else:
+            data = aiohttp.FormData()
+            data.add_field("testMode", str(payload["testMode"]).lower())
+            data.add_field("audio", source)
+            headers = self._get_auth_headers()
+            headers.pop("Content-Type", None)
+            result = await self._request_json(
+                "POST",
+                f"{self.api_base}/ai/speech2txt",
                 headers=headers,
-            ) as response:
-                response.raise_for_status()
-                logger.info("ai_txt2speech request successful")
-                return await response.read()
-        except aiohttp.ClientError as e:
-            logger.warning(f"ai_txt2speech error: {e}")
-            raise
+                data=data,
+            )
+            return result
+
+        headers = self._get_auth_headers()
+        result = await self._request_json(
+            "POST",
+            f"{self.api_base}/ai/speech2txt",
+            headers=headers,
+            json_body=payload,
+        )
+        if options.get("response_format") == "text" and "text" in result:
+            return str(result["text"])
+        if "text" in result and len(result) == 1:
+            return str(result["text"])
+        return result
+
+    async def ai_speech2speech(
+        self,
+        source: Union[str, Any],
+        options: Optional[Dict[str, Any]] = None,
+        test_mode: bool = False,
+    ) -> Union[bytes, Dict[str, Any]]:
+        if options is None:
+            options = {}
+        payload: Dict[str, Any] = dict(options)
+        payload["testMode"] = payload.get("testMode", test_mode)
+
+        if isinstance(source, str):
+            payload.setdefault("audio", source)
+            headers = self._get_auth_headers()
+            return await self._request_bytes(
+                "POST",
+                f"{self.api_base}/ai/speech2speech",
+                headers=headers,
+                json_body=payload,
+            )
+
+        data = aiohttp.FormData()
+        data.add_field("testMode", str(payload["testMode"]).lower())
+        data.add_field("audio", source)
+        headers = self._get_auth_headers()
+        headers.pop("Content-Type", None)
+        audio = await self._request_bytes(
+            "POST",
+            f"{self.api_base}/ai/speech2speech",
+            headers=headers,
+            data=data,
+        )
+        return audio
+
+    async def ai_txt2vid(
+        self,
+        prompt: str,
+        options: Optional[Dict[str, Any]] = None,
+        test_mode: bool = False,
+    ) -> Dict[str, Any]:
+        if options is None:
+            options = {}
+        payload: Dict[str, Any] = dict(options)
+        payload.setdefault("prompt", prompt)
+        payload["testMode"] = payload.get("testMode", test_mode)
+        headers = self._get_auth_headers()
+        return await self._request_json(
+            "POST",
+            f"{self.api_base}/ai/txt2vid",
+            headers=headers,
+            json_body=payload,
+        )

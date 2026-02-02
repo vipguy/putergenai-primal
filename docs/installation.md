@@ -1,7 +1,7 @@
 # Installation
 
 ## Requirements
-- Python 3.9 or higher
+- Python 3.11 or higher
 - A Puter.com account and API access token
 - Recommended: virtual environment (`venv`, `virtualenv`, or similar)
 
@@ -17,6 +17,25 @@ Verify that the package is available:
 
 ```bash
 python -m pip show putergenai
+```
+
+## CLI Tool
+
+The package includes a command-line interface (CLI) for quick interaction with Puter.
+
+```bash
+# Login
+puter login
+
+# Start a chat
+puter chat --model gpt-4o
+
+# List available models
+puter models
+
+# Manage Key-Value store
+puter kv set mykey "value"
+puter kv get mykey
 ```
 
 ## Installing from source
